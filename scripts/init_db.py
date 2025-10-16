@@ -10,6 +10,10 @@
 """
 
 from __future__ import annotations
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent.parent))
 
 import argparse
 from pathlib import Path
@@ -22,13 +26,19 @@ def reset_database() -> None:
     """删除数据库文件并重新初始化。仅用于开发。"""
     info = get_database_info()
     db_path = Path(info.database_path)
+
+    # 清理连接池
     try:
         engine.dispose()
     except Exception:
         pass
+
+    # 删除数据库文件
     if db_path.exists():
         db_path.unlink()
         logger.info("已删除数据库文件：{}", db_path)
+
+    # 重新初始化数据库（会通过 Alembic 创建表结构）
     init_database()
 
 
