@@ -6,12 +6,13 @@
     提供路由层与服务层使用的数据模型定义，确保输入输出的结构化与校验。
 
 公开接口：
-    - `HealthMetricPayload`
-    - `HealthMetricOut`
-    - `HealthPreferencePayload`
-    - `HealthPreferenceOut`
-    - `AgentContext`
-    - `AgentSuggestion`
+     - `HealthMetricPayload`
+     - `HealthMetricOut`
+     - `HealthPreferencePayload`
+     - `HealthPreferenceOut`
+     - `HealthRecommendationOut`
+     - `AgentContext`
+     - `AgentSuggestion`
 
 内部方法：
     - `_ensure_timezone`
@@ -149,3 +150,19 @@ class AgentSuggestion(BaseModel):
     )
     hydration: List[str] = Field(default_factory=list, description="水分补充建议")
     lifestyle: List[str] = Field(default_factory=list, description="生活方式/运动建议")
+
+
+class HealthRecommendationOut(BaseModel):
+    """健康建议输出模型"""
+
+    id: int
+    user_id: int
+    summary: str
+    meal_plan: List[str]
+    calorie_management: List[str]
+    weight_management: List[str]
+    hydration: List[str]
+    lifestyle: List[str]
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

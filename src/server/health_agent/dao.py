@@ -6,7 +6,9 @@
     提供健康指标与偏好配置信息的数据库读写能力。
 
 公开接口：
-    - `HealthDataDAO`
+     - `HealthDataDAO`
+     - `create_recommendation`
+     - `get_latest_recommendation`
 
 内部方法：
     - `_apply_preference_fields`
@@ -21,8 +23,8 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from src.server.dao.dao_base import BaseDAO
-from .models import HealthMetric, HealthPreference
-from .schemas import HealthMetricPayload, HealthPreferencePayload
+from .models import HealthMetric, HealthPreference, HealthRecommendation
+from .schemas import HealthMetricPayload, HealthPreferencePayload, AgentSuggestion
 
 
 class HealthDataDAO(BaseDAO):
@@ -95,3 +97,32 @@ class HealthDataDAO(BaseDAO):
         preference.activity_level = payload.activity_level
         preference.sleep_goal_hours = payload.sleep_goal_hours
         preference.hydration_goal_liters = payload.hydration_goal_liters
+
+    def create_recommendation(
+        self, user_id: int, suggestion: AgentSuggestion
+    ) -> HealthRecommendation:
+        """创建健康建议记录"""
+        recommendation = HealthRecommendation(
+            user_id=user_id,
+            summary=suggestion.summary,
+            meal_plan=suggestion.meal_plan,
+            calorie_management=suggestion.calorie_management,
+            weight_management=suggestion.weight_management,
+            hydration=suggestion.hydration,
+            lifestyle=suggestion.lifestyle,
+        )
+        self.db_session.add(recommendation)
+        self.db_session.commit()
+        self.db_session.refresh(recommendation)
+        return recommendation
+
+    def get_latest_recommendation(self, user_id: int) -> HealthRecommendation | None:
+        """获取用户最新的健康建议"""
+        return (
+            self.db_session.query(HealthRecommendation)
+            .filter(HealthRecommendation.user_id == user_id)
+            .order_by(
+                desc(HealthRecommendation.created_at), desc(HealthRecommendation.id)
+            )
+            .first()
+        )

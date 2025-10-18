@@ -2,7 +2,6 @@ import {
   BarChartOutlined,
   BulbOutlined,
   PlusCircleOutlined,
-  ReloadOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import {
@@ -31,19 +30,21 @@ import {
   fetchLatestMetric,
   fetchMetricHistory,
   fetchPreferences,
-  generateRecommendations,
+  generateNewRecommendation,
+  getLatestRecommendation,
   updatePreferences,
 } from '../../lib/health'
 import type {
-  AgentSuggestion,
   HealthMetric,
   HealthMetricPayload,
   HealthPreference,
   HealthPreferencePayload,
+  HealthRecommendation,
 } from '../../lib/types'
 import LoadingState from '../../components/common/LoadingState'
 import EmptyState from '../../components/common/EmptyState'
 import StatsCard from '../../components/common/StatsCard'
+import RecommendationCard from '../../components/common/RecommendationCard'
 
 type TabKey = 'metrics' | 'suggestions' | 'profile'
 
@@ -65,9 +66,10 @@ export default function HealthAppPage() {
   const [metricHistory, setMetricHistory] = useState<HealthMetric[]>([])
   const [metricLoading, setMetricLoading] = useState(false)
 
-  const [suggestion, setSuggestion] = useState<AgentSuggestion | null>(null)
-  const [suggestionLoading, setSuggestionLoading] = useState(false)
-  const [suggestionError, setSuggestionError] = useState<string | null>(null)
+
+  const [recommendation, setRecommendation] = useState<HealthRecommendation | null>(null)
+  const [recommendationLoading, setRecommendationLoading] = useState(false)
+  const [recommendationError, setRecommendationError] = useState<string | null>(null)
 
   const [preferences, setPreferences] = useState<HealthPreference | null>(null)
   const [preferencesLoading, setPreferencesLoading] = useState(false)
@@ -161,31 +163,43 @@ export default function HealthAppPage() {
     }
   }, [message])
 
-  const loadSuggestions = useCallback(async () => {
-    setSuggestionLoading(true)
-    setSuggestionError(null)
+
+  const loadLatestRecommendation = useCallback(async () => {
+    setRecommendationLoading(true)
+    setRecommendationError(null)
     try {
-      const data = await generateRecommendations()
-      setSuggestion(data)
+      const data = await getLatestRecommendation()
+      setRecommendation(data)
     } catch (error) {
       const text = resolveErrorMessage(error)
-      setSuggestionError(text)
-      setSuggestion(null)
+      setRecommendationError(text)
+      setRecommendation(null)
     } finally {
-      setSuggestionLoading(false)
+      setRecommendationLoading(false)
     }
   }, [])
+
+  const handleRegenerateRecommendation = useCallback(async () => {
+    setRecommendationLoading(true)
+    setRecommendationError(null)
+    try {
+      await generateNewRecommendation()
+      // 重新加载最新建议以获取数据库中的完整记录
+      await loadLatestRecommendation()
+    } catch (error) {
+      const text = resolveErrorMessage(error)
+      setRecommendationError(text)
+    } finally {
+      setRecommendationLoading(false)
+    }
+  }, [loadLatestRecommendation])
 
   useEffect(() => {
     void loadMetrics()
     void loadPreferences()
-  }, [loadMetrics, loadPreferences])
+    void loadLatestRecommendation()
+  }, [loadMetrics, loadPreferences, loadLatestRecommendation])
 
-  useEffect(() => {
-    if (activeTab === 'suggestions' && !suggestion && !suggestionLoading && !suggestionError) {
-      void loadSuggestions()
-    }
-  }, [activeTab, suggestion, suggestionLoading, suggestionError, loadSuggestions])
 
   useEffect(() => {
     if (metricModalOpen) {
@@ -378,105 +392,41 @@ export default function HealthAppPage() {
     )
   }
 
-  const renderSuggestionList = (emoji: string, title: string, items: string[]) => {
-    if (!items?.length) {
-      return null
-    }
-    return (
-      <Card
-        className="border-none"
-        size="small"
-        style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18 }}>{emoji}</span>
-            <Typography.Text strong>{title}</Typography.Text>
-          </div>
-        }
-      >
-        <List
-          dataSource={items}
-          renderItem={(text, idx) => (
-            <List.Item className="px-0" style={{ paddingBlock: 8, borderBottom: 'none' }}>
-              <Typography.Text>
-                {idx + 1}️⃣ {text}
-              </Typography.Text>
-            </List.Item>
-          )}
-        />
-      </Card>
-    )
-  }
 
   const renderSuggestionTab = () => {
-    if (suggestionLoading && !suggestion) {
-      return <LoadingState message="AI 正在为你生成建议..." minHeight={300} />
+    if (recommendationLoading && !recommendation) {
+      return <LoadingState message="加载健康建议中..." minHeight={300} />
     }
 
     return (
       <Space direction="vertical" size={16} className="w-full">
-        <Card
-          className="border-none bg-white"
-          style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
-          title={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 20 }}>💡</span>
-              <Typography.Title level={4} style={{ marginBottom: 0 }}>
-                今日 AI 建议
-              </Typography.Title>
-            </div>
-          }
-          extra={
-            <Button
-              type="default"
-              icon={<ReloadOutlined />}
-              onClick={() => {
-                void loadSuggestions()
-              }}
-              loading={suggestionLoading}
-            >
-              🔄 重新生成
-            </Button>
-          }
-        >
-          {suggestionError && (
-            <Alert
-              type="warning"
-              showIcon
-              className="mb-4"
-              message="⚠️ 无法获取 AI 建议"
-              description={suggestionError}
-              style={{ marginBottom: 16 }}
-            />
-          )}
-          {!suggestionError && !suggestion && (
-            <EmptyState
-              emoji="🔓"
-              title="数据未解锁"
-              description="请先在「我的数据」标签页录入健康数据后再获取 AI 建议。"
-              minHeight={180}
-            />
-          )}
-          {suggestion && (
-            <Space direction="vertical" size={16} className="w-full">
-              {/* 摘要 */}
-              <Alert
-                type="success"
-                showIcon
-                message="📋 健康摘要"
-                description={suggestion.summary}
-                style={{ border: 'none', backgroundColor: '#ecfdf5' }}
-              />
+        {recommendationError && (
+          <Alert
+            type="warning"
+            showIcon
+            className="mb-4"
+            message="⚠️ 无法获取健康建议"
+            description={recommendationError}
+            style={{ marginBottom: 16 }}
+          />
+        )}
 
-              {/* 具体建议 */}
-              {renderSuggestionList('🍽️', '健康食谱推荐', suggestion.meal_plan)}
-              {renderSuggestionList('🔥', '卡路里管理', suggestion.calorie_management)}
-              {renderSuggestionList('⚖️', '体重管理策略', suggestion.weight_management)}
-              {renderSuggestionList('💧', '水分建议', suggestion.hydration)}
-              {renderSuggestionList('🌟', '生活方式', suggestion.lifestyle)}
-            </Space>
-          )}
-        </Card>
+        {!recommendationError && !recommendation && (
+          <EmptyState
+            emoji="🔓"
+            title="暂无健康建议"
+            description="请先在「我的数据」标签页录入健康数据，然后点击「重新生成」按钮获取 AI 建议。"
+            minHeight={180}
+          />
+        )}
+
+        {recommendation && (
+          <RecommendationCard
+            recommendation={recommendation}
+            onRegenerate={handleRegenerateRecommendation}
+            isLoading={recommendationLoading}
+          />
+        )}
       </Space>
     )
   }

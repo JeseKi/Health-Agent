@@ -6,22 +6,24 @@
     提供健康数据管理与 AI 建议相关的 REST API。
 
 公开接口：
-    - POST /api/health/metrics
-    - GET /api/health/metrics/latest
-    - GET /api/health/metrics/history
-    - GET /api/health/preferences
-    - PUT /api/health/preferences
-    - POST /api/health/recommendations
+     - POST /api/health/metrics
+     - GET /api/health/metrics/latest
+     - GET /api/health/metrics/history
+     - GET /api/health/preferences
+     - PUT /api/health/preferences
+     - POST /api/health/recommendations
+     - GET /api/health/recommendations/latest
 
 内部方法：
     - 无
 
 公开接口的 pydantic 模型：
-    - `HealthMetricPayload`
-    - `HealthMetricOut`
-    - `HealthPreferencePayload`
-    - `HealthPreferenceOut`
-    - `AgentSuggestion`
+     - `HealthMetricPayload`
+     - `HealthMetricOut`
+     - `HealthPreferencePayload`
+     - `HealthPreferenceOut`
+     - `HealthRecommendationOut`
+     - `AgentSuggestion`
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ from .schemas import (
     HealthMetricPayload,
     HealthPreferenceOut,
     HealthPreferencePayload,
+    HealthRecommendationOut,
 )
 from .service import HealthService
 
@@ -167,3 +170,25 @@ async def generate_recommendations(
 
     context = await run_in_thread(_build)
     return await service.request_agent_suggestion(context)
+
+
+@router.get(
+    "/recommendations/latest",
+    response_model=HealthRecommendationOut,
+    summary="获取最新健康建议",
+)
+async def get_latest_recommendation(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> HealthRecommendationOut:
+    service = HealthService(db)
+
+    def _fetch() -> HealthRecommendationOut | None:
+        return service.get_latest_recommendation(current_user.id)
+
+    recommendation = await run_in_thread(_fetch)
+    if recommendation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="尚无健康建议记录。"
+        )
+    return recommendation

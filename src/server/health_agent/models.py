@@ -6,8 +6,9 @@
     定义健康指标与个性化偏好的 ORM 模型，负责数据持久化结构。
 
 公开接口：
-    - `HealthMetric`：记录单次健康体测数据
-    - `HealthPreference`：记录用户的健康目标与偏好
+     - `HealthMetric`：记录单次健康体测数据
+     - `HealthPreference`：记录用户的健康目标与偏好
+     - `HealthRecommendation`：记录 AI 生成的健康建议
 
 内部方法：
     - 无
@@ -24,7 +25,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, UniqueConstraint, Index
+from sqlalchemy import (
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    Index,
+    JSON,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.server.database import Base
@@ -77,4 +87,31 @@ class HealthPreference(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class HealthRecommendation(Base):
+    """用户健康建议记录"""
+
+    __tablename__ = "health_recommendations"
+    __table_args__ = (
+        Index("idx_health_recommendations_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    meal_plan: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    calorie_management: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    weight_management: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
+    hydration: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    lifestyle: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )

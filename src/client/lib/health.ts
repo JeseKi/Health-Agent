@@ -1,12 +1,13 @@
 import { isAxiosError } from 'axios'
 import api from './api'
 import type {
-  AgentSuggestion,
-  HealthMetric,
-  HealthMetricPayload,
-  HealthPreference,
-  HealthPreferencePayload,
-} from './types'
+   AgentSuggestion,
+   HealthMetric,
+   HealthMetricPayload,
+   HealthPreference,
+   HealthPreferencePayload,
+   HealthRecommendation,
+ } from './types'
 
 export async function createMetric(payload: HealthMetricPayload) {
   const { data } = await api.post<HealthMetric>('/health/metrics', payload)
@@ -43,6 +44,23 @@ export async function updatePreferences(payload: HealthPreferencePayload) {
 }
 
 export async function generateRecommendations() {
+  const { data } = await api.post<AgentSuggestion>('/health/recommendations')
+  return data
+}
+
+export async function getLatestRecommendation() {
+  try {
+    const { data } = await api.get<HealthRecommendation>('/health/recommendations/latest')
+    return data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return null
+    }
+    throw error
+  }
+}
+
+export async function generateNewRecommendation() {
   const { data } = await api.post<AgentSuggestion>('/health/recommendations')
   return data
 }

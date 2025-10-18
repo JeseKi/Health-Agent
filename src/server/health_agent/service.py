@@ -12,10 +12,11 @@
     - `_validate_metric_payload`
 
 公开接口的 pydantic 模型：
-    - `HealthMetricPayload`
-    - `HealthPreferencePayload`
-    - `AgentContext`
-    - `AgentSuggestion`
+     - `HealthMetricPayload`
+     - `HealthPreferencePayload`
+     - `HealthRecommendationOut`
+     - `AgentContext`
+     - `AgentSuggestion`
 
 设计说明：
     - 服务层承担业务校验，路由只负责装配与线程切换。
@@ -35,6 +36,7 @@ from .schemas import (
     HealthMetricPayload,
     HealthPreferenceOut,
     HealthPreferencePayload,
+    HealthRecommendationOut,
 )
 
 
@@ -96,12 +98,26 @@ class HealthService:
     ) -> AgentSuggestion:
         agent_client = client or AgentClient()
         try:
-            return await agent_client.fetch_suggestion(context)
+            suggestion = await agent_client.fetch_suggestion(context)
+
+            # 保存建议到数据库
+            self.dao.create_recommendation(context.metric.user_id, suggestion)
+
+            return suggestion
         except AgentClientError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=str(exc),
             ) from exc
+
+    def get_latest_recommendation(self, user_id: int) -> HealthRecommendationOut | None:
+        """获取用户最新的健康建议"""
+        recommendation = self.dao.get_latest_recommendation(user_id)
+        return (
+            HealthRecommendationOut.model_validate(recommendation)
+            if recommendation is not None
+            else None
+        )
 
     def _validate_metric_payload(self, payload: HealthMetricPayload) -> None:
         total_ratio = payload.body_fat_percent + payload.muscle_percent

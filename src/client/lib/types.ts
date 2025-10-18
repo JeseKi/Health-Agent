@@ -97,3 +97,15 @@ export interface AgentSuggestion {
   hydration: string[]
   lifestyle: string[]
 }
+
+export interface HealthRecommendation {
+  id: number
+  user_id: number
+  summary: string
+  meal_plan: string[]
+  calorie_management: string[]
+  weight_management: string[]
+  hydration: string[]
+  lifestyle: string[]
+  created_at: string
+}
