@@ -35,3 +35,4 @@ __pycache__
 
 # data
 data/*
+baml_client/*
