@@ -10,7 +10,6 @@ import {
   Alert,
   Button,
   Card,
-  Empty,
   Flex,
   Form,
   Input,
@@ -19,7 +18,6 @@ import {
   Modal,
   Select,
   Space,
-  Spin,
   Tag,
   Typography,
 } from 'antd'
@@ -43,6 +41,9 @@ import type {
   HealthPreference,
   HealthPreferencePayload,
 } from '../../lib/types'
+import LoadingState from '../../components/common/LoadingState'
+import EmptyState from '../../components/common/EmptyState'
+import StatsCard from '../../components/common/StatsCard'
 
 type TabKey = 'metrics' | 'suggestions' | 'profile'
 
@@ -85,32 +86,42 @@ export default function HealthAppPage() {
       {
         key: 'weight',
         label: '体重',
+        emoji: '⚖️',
         value: `${latestMetric.weight_kg.toFixed(1)} kg`,
         tip: '基于最新一次体测的重量',
+        color: 'orange' as const,
       },
       {
         key: 'bodyFat',
         label: '体脂率',
+        emoji: '🔥',
         value: `${latestMetric.body_fat_percent.toFixed(1)} %`,
         tip: '关注脂肪比例的变化趋势',
+        color: 'red' as const,
       },
       {
         key: 'bmi',
         label: 'BMI',
+        emoji: '📊',
         value: latestMetric.bmi.toFixed(1),
         tip: '18.5 - 23.9 为常见健康区间',
+        color: 'blue' as const,
       },
       {
         key: 'muscle',
         label: '肌肉率',
+        emoji: '💪',
         value: `${latestMetric.muscle_percent.toFixed(1)} %`,
         tip: '维持肌肉量有助于提高代谢',
+        color: 'green' as const,
       },
       {
         key: 'water',
         label: '水分率',
+        emoji: '💧',
         value: `${latestMetric.water_percent.toFixed(1)} %`,
         tip: '水分稳定代表良好的体液平衡',
+        color: 'blue' as const,
       },
     ]
   }, [latestMetric])
@@ -132,7 +143,7 @@ export default function HealthAppPage() {
       setLatestMetric(latest)
       setMetricHistory(history ?? [])
     } catch (error) {
-      message.error(resolveErrorMessage(error))
+      message.error(`❌ ${resolveErrorMessage(error)}`)
     } finally {
       setMetricLoading(false)
     }
@@ -144,7 +155,7 @@ export default function HealthAppPage() {
       const data = await fetchPreferences()
       setPreferences(data)
     } catch (error) {
-      message.error(resolveErrorMessage(error))
+      message.error(`❌ ${resolveErrorMessage(error)}`)
     } finally {
       setPreferencesLoading(false)
     }
@@ -217,86 +228,77 @@ export default function HealthAppPage() {
         ...values,
         note: values.note ?? null,
       })
-      message.success('体测数据已更新')
+      message.success('✅ 体测数据已更新')
       setMetricModalOpen(false)
       await loadMetrics()
     } catch (error) {
-      if (!isAxiosError(error)) {
-        message.error(resolveErrorMessage(error))
-      } else {
-        message.error(resolveErrorMessage(error))
-      }
+      message.error(`❌ ${resolveErrorMessage(error)}`)
     }
   }
 
   const handleSavePreferences = async () => {
     try {
       const values = await preferenceForm.validateFields()
-      const payload = {} as HealthPreferencePayload
-      ;(Object.entries(values) as [keyof HealthPreferencePayload, number | string | null | undefined][]).forEach(
-        ([key, value]) => {
-          if (value !== undefined) {
-            ;(payload as any)[key] = value
-          }
-        },
-      )
+      const payload = Object.fromEntries(
+        Object.entries(values).filter(([, value]) => value !== undefined)
+      ) as HealthPreferencePayload
       setPreferencesSaving(true)
       const updated = await updatePreferences(payload)
       setPreferences(updated)
-      message.success('健康偏好已保存')
+      message.success('✅ 健康偏好已保存')
     } catch (error) {
-      message.error(resolveErrorMessage(error))
+      message.error(`❌ ${resolveErrorMessage(error)}`)
     } finally {
       setPreferencesSaving(false)
     }
   }
 
-  const tabs: { key: TabKey; label: string; icon: ReactNode }[] = useMemo(
+  const tabs: { key: TabKey; label: string; icon: ReactNode; emoji: string }[] = useMemo(
     () => [
-      { key: 'metrics', label: '我的数据', icon: <BarChartOutlined /> },
-      { key: 'suggestions', label: 'AI 建议', icon: <BulbOutlined /> },
-      { key: 'profile', label: '我的', icon: <UserOutlined /> },
+      { key: 'metrics', label: '我的数据', icon: <BarChartOutlined />, emoji: '📊' },
+      { key: 'suggestions', label: 'AI 建议', icon: <BulbOutlined />, emoji: '💡' },
+      { key: 'profile', label: '我的', icon: <UserOutlined />, emoji: '👤' },
     ],
     [],
   )
 
   const renderMetricTab = () => {
     if (metricLoading) {
-      return (
-        <div className="flex h-full items-center justify-center py-16">
-          <Spin tip="加载最新体测..." />
-        </div>
-      )
+      return <LoadingState message="加载最新体测数据..." minHeight={300} />
     }
 
     if (!latestMetric) {
       return (
-        <Card
-          className="border-none bg-white shadow-sm"
-          actions={[
-            <Button
-              key="create"
-              type="primary"
-              icon={<PlusCircleOutlined />}
-              onClick={() => setMetricModalOpen(true)}
-            >
-              记录首条数据
-            </Button>,
-          ]}
-        >
-          <Empty description="暂无健康数据，请先录入体测信息。" />
-        </Card>
+        <EmptyState
+          emoji="📭"
+          title="暂无健康数据"
+          description="还没有记录任何体测信息，让我们开始吧！💪"
+          action={{
+            text: '📝 记录首条数据',
+            onClick: () => setMetricModalOpen(true),
+            icon: <PlusCircleOutlined />,
+          }}
+        />
       )
     }
 
     return (
       <Space direction="vertical" size={16} className="w-full">
+        {/* 最新体测卡片 */}
         <Card
-          className="border-none bg-white shadow-sm"
-          title="最新体测"
+          className="border-none bg-white"
+          style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>📈</span>
+              <Typography.Title level={4} style={{ marginBottom: 0 }}>
+                最新体测
+              </Typography.Title>
+            </div>
+          }
           extra={
             <Space size={12}>
-              <Tag color="blue">记录时间 {recordedAtText}</Tag>
+              <Tag color="orange">⏰ {recordedAtText}</Tag>
               <Button
                 type="primary"
                 icon={<PlusCircleOutlined />}
@@ -307,48 +309,63 @@ export default function HealthAppPage() {
             </Space>
           }
         >
+          {/* 数据卡片网格 */}
           <Flex wrap gap={12}>
             {metricCards.map((item) => (
-              <Card
+              <StatsCard
                 key={item.key}
-                className="w-[calc(50%-6px)] min-w-[160px] border bg-slate-50"
-                bodyStyle={{ padding: 16 }}
-              >
-                <Typography.Text type="secondary">{item.label}</Typography.Text>
-                <Typography.Title level={3} style={{ marginTop: 8, marginBottom: 4 }}>
-                  {item.value}
-                </Typography.Title>
-                <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-                  {item.tip}
-                </Typography.Paragraph>
-              </Card>
+                emoji={item.emoji}
+                label={item.label}
+                value={item.value}
+                tip={item.tip}
+                color={item.color}
+              />
             ))}
           </Flex>
+
+          {/* 备注信息 */}
           {latestMetric.note && (
             <Alert
               type="info"
               showIcon
               className="mt-4"
-              message={<span className="font-medium text-slate-700">备注</span>}
+              message={<span style={{ fontWeight: 600 }}>📝 备注</span>}
               description={latestMetric.note}
+              style={{ marginTop: 16 }}
             />
           )}
         </Card>
 
+        {/* 历史记录 */}
         {metricHistory.length > 1 && (
-          <Card className="border-none bg-white shadow-sm" title="历史记录">
+          <Card
+            className="border-none bg-white"
+            style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
+            title={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>📚</span>
+                <Typography.Title level={4} style={{ marginBottom: 0 }}>
+                  历史记录
+                </Typography.Title>
+              </div>
+            }
+          >
             <List
               itemLayout="horizontal"
               dataSource={metricHistory.slice(0, 6)}
               renderItem={(item) => (
-                <List.Item>
+                <List.Item style={{ padding: '12px 0' }}>
                   <List.Item.Meta
-                    title={dayjs(item.recorded_at).format('MM-DD HH:mm')}
+                    title={
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>
+                        📅 {dayjs(item.recorded_at).format('MM-DD HH:mm')}
+                      </span>
+                    }
                     description={
-                      <Space size={12}>
-                        <span>体重 {item.weight_kg.toFixed(1)} kg</span>
-                        <span>体脂率 {item.body_fat_percent.toFixed(1)}%</span>
-                        <span>肌肉率 {item.muscle_percent.toFixed(1)}%</span>
+                      <Space size={12} wrap>
+                        <span style={{ fontSize: 12 }}>⚖️ 体重 {item.weight_kg.toFixed(1)} kg</span>
+                        <span style={{ fontSize: 12 }}>🔥 体脂 {item.body_fat_percent.toFixed(1)}%</span>
+                        <span style={{ fontSize: 12 }}>💪 肌肉 {item.muscle_percent.toFixed(1)}%</span>
                       </Space>
                     }
                   />
@@ -361,17 +378,29 @@ export default function HealthAppPage() {
     )
   }
 
-  const renderSuggestionList = (title: string, items: string[]) => {
+  const renderSuggestionList = (emoji: string, title: string, items: string[]) => {
     if (!items?.length) {
       return null
     }
     return (
-      <Card className="border-none bg-slate-50" size="small" title={title}>
+      <Card
+        className="border-none"
+        size="small"
+        style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>{emoji}</span>
+            <Typography.Text strong>{title}</Typography.Text>
+          </div>
+        }
+      >
         <List
           dataSource={items}
-          renderItem={(text) => (
-            <List.Item className="px-0">
-              <Typography.Text>{text}</Typography.Text>
+          renderItem={(text, idx) => (
+            <List.Item className="px-0" style={{ paddingBlock: 8, borderBottom: 'none' }}>
+              <Typography.Text>
+                {idx + 1}️⃣ {text}
+              </Typography.Text>
             </List.Item>
           )}
         />
@@ -381,18 +410,22 @@ export default function HealthAppPage() {
 
   const renderSuggestionTab = () => {
     if (suggestionLoading && !suggestion) {
-      return (
-        <div className="flex h-full items-center justify-center py-16">
-          <Spin tip="正在生成建议..." />
-        </div>
-      )
+      return <LoadingState message="AI 正在为你生成建议..." minHeight={300} />
     }
 
     return (
       <Space direction="vertical" size={16} className="w-full">
         <Card
-          className="border-none bg-white shadow-sm"
-          title="今日建议"
+          className="border-none bg-white"
+          style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>💡</span>
+              <Typography.Title level={4} style={{ marginBottom: 0 }}>
+                今日 AI 建议
+              </Typography.Title>
+            </div>
+          }
           extra={
             <Button
               type="default"
@@ -402,7 +435,7 @@ export default function HealthAppPage() {
               }}
               loading={suggestionLoading}
             >
-              重新生成
+              🔄 重新生成
             </Button>
           }
         >
@@ -411,26 +444,36 @@ export default function HealthAppPage() {
               type="warning"
               showIcon
               className="mb-4"
-              message="无法获取 AI 建议"
+              message="⚠️ 无法获取 AI 建议"
               description={suggestionError}
+              style={{ marginBottom: 16 }}
             />
           )}
           {!suggestionError && !suggestion && (
-            <Empty description="请先录入健康数据后再获取 AI 建议。" />
+            <EmptyState
+              emoji="🔓"
+              title="数据未解锁"
+              description="请先在「我的数据」标签页录入健康数据后再获取 AI 建议。"
+              minHeight={180}
+            />
           )}
           {suggestion && (
             <Space direction="vertical" size={16} className="w-full">
+              {/* 摘要 */}
               <Alert
                 type="success"
                 showIcon
-                message="摘要"
+                message="📋 健康摘要"
                 description={suggestion.summary}
+                style={{ border: 'none', backgroundColor: '#ecfdf5' }}
               />
-              {renderSuggestionList('健康食谱推荐', suggestion.meal_plan)}
-              {renderSuggestionList('卡路里管理', suggestion.calorie_management)}
-              {renderSuggestionList('体重管理策略', suggestion.weight_management)}
-              {renderSuggestionList('水分建议', suggestion.hydration)}
-              {renderSuggestionList('生活方式', suggestion.lifestyle)}
+
+              {/* 具体建议 */}
+              {renderSuggestionList('🍽️', '健康食谱推荐', suggestion.meal_plan)}
+              {renderSuggestionList('🔥', '卡路里管理', suggestion.calorie_management)}
+              {renderSuggestionList('⚖️', '体重管理策略', suggestion.weight_management)}
+              {renderSuggestionList('💧', '水分建议', suggestion.hydration)}
+              {renderSuggestionList('🌟', '生活方式', suggestion.lifestyle)}
             </Space>
           )}
         </Card>
@@ -440,189 +483,276 @@ export default function HealthAppPage() {
 
   const renderProfileTab = () => (
     <Space direction="vertical" size={16} className="w-full">
-      <Card className="border-none bg-white shadow-sm">
-        <Typography.Title level={4}>账户信息</Typography.Title>
-        <Space direction="vertical" size={12} className="mt-4">
-          <Typography.Text strong>用户名</Typography.Text>
-          <Typography.Text>{user?.username ?? '未知用户'}</Typography.Text>
-          <Typography.Text strong>邮箱</Typography.Text>
-          <Typography.Text>{user?.email ?? '尚未填写'}</Typography.Text>
+      {/* 账户信息卡片 */}
+      <Card
+        className="border-none bg-white"
+        style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20 }}>👤</span>
+            <Typography.Title level={4} style={{ marginBottom: 0 }}>
+              账户信息
+            </Typography.Title>
+          </div>
+        }
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <div>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+              👥 用户名
+            </Typography.Text>
+            <Typography.Text strong style={{ fontSize: 15 }}>
+              {user?.username ?? '未知用户'}
+            </Typography.Text>
+          </div>
+          <div>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+              ✉️ 邮箱
+            </Typography.Text>
+            <Typography.Text strong style={{ fontSize: 15 }}>
+              {user?.email ?? '尚未填写'}
+            </Typography.Text>
+          </div>
         </Space>
       </Card>
 
-      <Card className="border-none bg-white shadow-sm" title="健康偏好">
+      {/* 健康偏好卡片 */}
+      <Card
+        className="border-none bg-white"
+        style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20 }}>⚙️</span>
+            <Typography.Title level={4} style={{ marginBottom: 0 }}>
+              健康偏好设置
+            </Typography.Title>
+          </div>
+        }
+      >
         {preferencesLoading ? (
-          <div className="flex h-32 items-center justify-center">
-            <Spin tip="加载偏好..." />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 12, animation: 'pulse 2s infinite' }}>⚙️</div>
+              <Typography.Text type="secondary">加载偏好设置中...</Typography.Text>
+            </div>
           </div>
         ) : (
           <Form form={preferenceForm} layout="vertical" requiredMark={false}>
             <Form.Item
-              label="目标体重 (kg)"
+              label="🎯 目标体重 (kg)"
               name="target_weight_kg"
               rules={[
-                { min: 1, type: 'number', message: '请输入合理的体重数值' },
+                { min: 1, type: 'number', message: '请输入合理的体重数值 ⚠️' },
               ]}
             >
-              <InputNumber className="w-full" min={30} max={200} step={0.1} placeholder="示例：65.5" />
+              <InputNumber
+                className="w-full"
+                min={30}
+                max={200}
+                step={0.1}
+                placeholder="示例：65.5"
+                size="large"
+              />
             </Form.Item>
+
             <Form.Item
-              label="每日热量预算 (kcal)"
+              label="🔥 每日热量预算 (kcal)"
               name="calorie_budget_kcal"
               rules={[
-                { type: 'number', min: 600, max: 5000, message: '热量预算需在 600-5000 之间' },
+                { type: 'number', min: 600, max: 5000, message: '热量预算需在 600-5000 之间 ⚠️' },
               ]}
             >
-              <InputNumber className="w-full" placeholder="示例：2000" />
+              <InputNumber className="w-full" placeholder="示例：2000" size="large" />
             </Form.Item>
-            <Form.Item label="饮食偏好" name="dietary_preference">
-              <Input placeholder="例如：高蛋白、地中海饮食" />
+
+            <Form.Item label="🍽️ 饮食偏好" name="dietary_preference">
+              <Input placeholder="例如：高蛋白、地中海饮食" size="large" />
             </Form.Item>
-            <Form.Item label="活动水平" name="activity_level">
+
+            <Form.Item label="🏃 活动水平" name="activity_level">
               <Select
                 placeholder="请选择日常活动水平"
+                size="large"
                 options={[
-                  { value: 'light', label: '低强度（久坐为主）' },
-                  { value: 'moderate', label: '中等强度（每周 2-3 次运动）' },
-                  { value: 'high', label: '高强度（经常训练）' },
+                  { value: 'light', label: '🪑 低强度（久坐为主）' },
+                  { value: 'moderate', label: '🚶 中等强度（每周 2-3 次运动）' },
+                  { value: 'high', label: '🏋️ 高强度（经常训练）' },
                 ]}
                 allowClear
               />
             </Form.Item>
+
             <Form.Item
-              label="睡眠目标 (小时)"
+              label="😴 睡眠目标 (小时)"
               name="sleep_goal_hours"
               rules={[
-                { type: 'number', min: 4, max: 12, message: '睡眠目标需在 4-12 小时之间' },
+                { type: 'number', min: 4, max: 12, message: '睡眠目标需在 4-12 小时之间 ⚠️' },
               ]}
             >
-              <InputNumber className="w-full" placeholder="示例：7.5" step={0.5} />
+              <InputNumber className="w-full" placeholder="示例：7.5" step={0.5} size="large" />
             </Form.Item>
+
             <Form.Item
-              label="饮水目标 (升)"
+              label="💧 饮水目标 (升)"
               name="hydration_goal_liters"
               rules={[
-                { type: 'number', min: 1, max: 6, message: '饮水目标需在 1-6 升之间' },
+                { type: 'number', min: 1, max: 6, message: '饮水目标需在 1-6 升之间 ⚠️' },
               ]}
             >
-              <InputNumber className="w-full" placeholder="示例：2.5" step={0.1} />
+              <InputNumber className="w-full" placeholder="示例：2.5" step={0.1} size="large" />
             </Form.Item>
+
             <Button
               type="primary"
               block
+              size="large"
               loading={preferencesSaving}
               onClick={() => {
                 void handleSavePreferences()
               }}
+              style={{ marginTop: 16 }}
             >
-              保存偏好
+              💾 保存偏好设置
             </Button>
           </Form>
         )}
       </Card>
 
+      {/* 提示卡片 */}
       <Alert
         type="info"
         showIcon
-        message="LLM 配置提示"
+        message="💡 AI 建议需要配置"
         description={
-          <Typography.Paragraph className="mb-0">
-            Agent 建议依赖服务端环境变量 <code>OPENAI_BASE_URL</code> 与 <code>OPENAI_API_KEY</code>。若遇到 503 错误，请检查配置或稍后重试。
+          <Typography.Paragraph className="mb-0" style={{ fontSize: 13 }}>
+            💬 AI 健康建议依赖服务端环境变量 <code>OPENAI_BASE_URL</code> 与 <code>OPENAI_API_KEY</code>。若遇到 503 错误，请检查后端配置或稍后重试。
           </Typography.Paragraph>
         }
+        style={{ marginTop: 8, border: 'none', backgroundColor: '#eff6ff' }}
       />
     </Space>
   )
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-slate-100">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 w-full max-w-xl items-center justify-between px-4">
+    <div className="relative flex min-h-screen flex-col bg-gradient-to-b from-slate-50 to-orange-50">
+      {/* 顶部粘性导航栏 */}
+      <header className="sticky top-0 z-10 border-b border-orange-100 bg-white/95 backdrop-blur-sm" style={{ boxShadow: '0 2px 8px rgba(249, 115, 22, 0.08)' }}>
+        <div className="mx-auto flex h-16 w-full max-w-2xl items-center justify-between px-4">
           <div>
-            <Typography.Title level={4} className="!mb-0 text-slate-900">
-              个性化健康助手
+            <Typography.Title level={4} className="!mb-0" style={{ color: '#1f2937' }}>
+              🏥 个性化健康助手
             </Typography.Title>
           </div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            👋 欢迎，{user?.username}
+          </Typography.Text>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-16 px-4 pb-24 pt-6">
+      {/* 主内容区 */}
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-16 px-4 pb-32 pt-6">
         {activeTab === 'metrics' && renderMetricTab()}
         {activeTab === 'suggestions' && renderSuggestionTab()}
         {activeTab === 'profile' && renderProfileTab()}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto flex w-full max-w-xl">
+      {/* 底部浮动导航栏 - 优化设计 */}
+      <nav
+        className="fixed bottom-0 left-0 right-0 border-t border-orange-100 bg-white/95 backdrop-blur-sm"
+        style={{ boxShadow: '0 -2px 12px rgba(249, 115, 22, 0.1)' }}
+      >
+        <div className="mx-auto flex w-full max-w-2xl">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
               className={clsx(
-                'flex flex-1 flex-col items-center justify-center gap-1 py-3 text-xs font-medium',
-                activeTab === tab.key ? 'text-blue-600' : 'text-slate-500',
+                'flex flex-1 flex-col items-center justify-center gap-1.5 py-3 text-xs font-medium transition-all duration-200',
+                activeTab === tab.key
+                  ? 'text-orange-600 bg-gradient-to-t from-orange-50 to-transparent'
+                  : 'text-slate-500 hover:text-slate-700',
               )}
+              style={{
+                borderTop: activeTab === tab.key ? '2px solid #f97316' : 'none',
+              }}
             >
-              {tab.icon}
+              <span style={{ fontSize: 20 }}>{tab.emoji}</span>
               <span>{tab.label}</span>
             </button>
           ))}
         </div>
       </nav>
 
+      {/* 记录体测数据的模态框 */}
       <Modal
-        title="记录我的体测数据"
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20 }}>📝</span>
+            <span>记录我的体测数据</span>
+          </div>
+        }
         open={metricModalOpen}
         onCancel={() => setMetricModalOpen(false)}
         onOk={() => {
           void handleSubmitMetric()
         }}
-        okText="保存"
-        cancelText="取消"
+        okText="💾 保存"
+        cancelText="❌ 取消"
         destroyOnClose
+        okButtonProps={{ type: 'primary' }}
+        style={{ borderRadius: 16 }}
       >
-        <Typography.Paragraph type="secondary">
-          请填写最近一次体测的核心指标，所有字段均会参与 AI 建议的生成。
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 16, fontSize: 13 }}>
+          📋 请填写最近一次体测的核心指标，所有字段均会参与 AI 建议的生成。
         </Typography.Paragraph>
+
         <Form form={metricForm} layout="vertical" requiredMark={false}>
           <Form.Item
-            label="体重 (kg)"
+            label="⚖️ 体重 (kg)"
             name="weight_kg"
-            rules={[{ required: true, message: '请输入体重' }]}
+            rules={[{ required: true, message: '请输入体重 ⚠️' }]}
           >
-            <InputNumber className="w-full" min={30} max={250} step={0.1} />
+            <InputNumber className="w-full" min={30} max={250} step={0.1} size="large" />
           </Form.Item>
+
           <Form.Item
-            label="体脂率 (%)"
+            label="🔥 体脂率 (%)"
             name="body_fat_percent"
-            rules={[{ required: true, message: '请输入体脂率' }]}
+            rules={[{ required: true, message: '请输入体脂率 ⚠️' }]}
           >
-            <InputNumber className="w-full" min={5} max={70} step={0.1} />
+            <InputNumber className="w-full" min={5} max={70} step={0.1} size="large" />
           </Form.Item>
+
           <Form.Item
-            label="BMI"
+            label="📊 BMI"
             name="bmi"
-            rules={[{ required: true, message: '请输入 BMI' }]}
+            rules={[{ required: true, message: '请输入 BMI ⚠️' }]}
           >
-            <InputNumber className="w-full" min={10} max={60} step={0.1} />
+            <InputNumber className="w-full" min={10} max={60} step={0.1} size="large" />
           </Form.Item>
+
           <Form.Item
-            label="肌肉率 (%)"
+            label="💪 肌肉率 (%)"
             name="muscle_percent"
-            rules={[{ required: true, message: '请输入肌肉率' }]}
+            rules={[{ required: true, message: '请输入肌肉率 ⚠️' }]}
           >
-            <InputNumber className="w-full" min={10} max={80} step={0.1} />
+            <InputNumber className="w-full" min={10} max={80} step={0.1} size="large" />
           </Form.Item>
+
           <Form.Item
-            label="水分率 (%)"
+            label="💧 水分率 (%)"
             name="water_percent"
-            rules={[{ required: true, message: '请输入水分率' }]}
+            rules={[{ required: true, message: '请输入水分率 ⚠️' }]}
           >
-            <InputNumber className="w-full" min={20} max={80} step={0.1} />
+            <InputNumber className="w-full" min={20} max={80} step={0.1} size="large" />
           </Form.Item>
-          <Form.Item label="备注" name="note">
-            <Input.TextArea placeholder="可记录当日状态、饮食或训练情况" rows={3} />
+
+          <Form.Item label="📝 备注（可选）" name="note">
+            <Input.TextArea
+              placeholder="可记录当日状态、饮食或训练情况 🎯"
+              rows={3}
+            />
           </Form.Item>
         </Form>
       </Modal>

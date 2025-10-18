@@ -3,12 +3,9 @@ import {
   Alert,
   App,
   Button,
-  Card,
   Flex,
   Form,
   Input,
-  Space,
-  Spin,
   Typography,
 } from 'antd'
 import {
@@ -20,6 +17,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import AuthCard from '../../components/auth/AuthCard'
 
 function resolveErrorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -54,13 +52,13 @@ export default function RegisterPage() {
     setSuccessMessage(null)
     try {
       await register(values)
-      setSuccessMessage('注册成功，请使用新账号登录。')
-      message.success('注册成功')
+      setSuccessMessage('✨ 注册成功，请使用新账号登录。')
+      message.success('🎉 注册成功！')
       form.resetFields()
     } catch (err) {
       const text = resolveErrorMessage(err)
       setError(text)
-      message.error(text)
+      message.error(`❌ ${text}`)
     } finally {
       setSubmitting(false)
     }
@@ -73,7 +71,10 @@ export default function RegisterPage() {
         justify="center"
         style={{ minHeight: '100vh' }}
       >
-        <Spin tip="正在加载，请稍候" size="large" />
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 16, animation: 'pulse 2s infinite' }}>📝</div>
+          <Typography.Text type="secondary">正在加载，请稍候...</Typography.Text>
+        </div>
       </Flex>
     )
   }
@@ -82,23 +83,32 @@ export default function RegisterPage() {
     <Flex
       align="center"
       justify="center"
-      style={{ minHeight: '100vh', padding: '48px 16px' }}
+      style={{ minHeight: '100vh', padding: '48px 16px', background: 'linear-gradient(135deg, #fafaf9 0%, #fff7ed 100%)' }}
     >
-      <Card
-        bordered={false}
-        style={{ width: '100%', maxWidth: 420, boxShadow: '0 16px 40px rgba(15, 23, 42, 0.12)' }}
+      <AuthCard
+        title="创建新账号"
+        description="👋 填写基础信息即可体验健康助手"
       >
-        <Space direction="vertical" size={24} style={{ width: '100%' }}>
-          <div>
-            <Typography.Title level={3} style={{ marginBottom: 8 }}>
-              创建新账号
-            </Typography.Title>
-            <Typography.Text type="secondary">
-              填写基础信息即可体验最新版本的前端模板能力。
-            </Typography.Text>
-          </div>
-          {error && <Alert type="error" showIcon message={error} />}
-          {successMessage && <Alert type="success" showIcon message={successMessage} />}
+        <div style={{ width: '100%' }}>
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message="注册失败"
+              description={error}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+          {successMessage && (
+            <Alert
+              type="success"
+              showIcon
+              message="注册成功"
+              description={successMessage}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           <Form
             form={form}
             layout="vertical"
@@ -107,52 +117,55 @@ export default function RegisterPage() {
             autoComplete="on"
           >
             <Form.Item
-              label="用户名"
+              label="👤 用户名"
               name="username"
               rules={[
-                { required: true, message: '请输入用户名' },
-                { min: 3, message: '用户名至少 3 个字符' },
+                { required: true, message: '请输入用户名 📝' },
+                { min: 3, message: '用户名至少 3 个字符 ⚠️' },
               ]}
             >
               <Input
                 size="large"
                 prefix={<UserOutlined />}
-                placeholder="请输入用户名"
+                placeholder="输入你的用户名"
                 autoComplete="username"
                 allowClear
               />
             </Form.Item>
+
             <Form.Item
-              label="邮箱"
+              label="✉️ 邮箱"
               name="email"
               rules={[
-                { required: true, message: '请输入邮箱地址' },
-                { type: 'email', message: '请输入正确的邮箱格式' },
+                { required: true, message: '请输入邮箱地址 📧' },
+                { type: 'email', message: '请输入正确的邮箱格式 ⚠️' },
               ]}
             >
               <Input
                 size="large"
                 prefix={<MailOutlined />}
-                placeholder="请输入邮箱地址"
+                placeholder="输入你的邮箱"
                 autoComplete="email"
                 allowClear
               />
             </Form.Item>
+
             <Form.Item
-              label="密码"
+              label="🔑 密码"
               name="password"
               rules={[
-                { required: true, message: '请输入密码' },
-                { min: 8, message: '密码至少 8 个字符' },
+                { required: true, message: '请输入密码 🔐' },
+                { min: 8, message: '密码至少 8 个字符 ⚠️' },
               ]}
             >
               <Input.Password
                 size="large"
                 prefix={<LockOutlined />}
-                placeholder="请输入密码"
+                placeholder="输入你的密码"
                 autoComplete="new-password"
               />
             </Form.Item>
+
             <Form.Item>
               <Button
                 type="primary"
@@ -161,19 +174,32 @@ export default function RegisterPage() {
                 icon={<UserAddOutlined />}
                 loading={submitting}
                 block
+                style={{ fontWeight: 600, letterSpacing: '0.5px' }}
               >
-                注册
+                {submitting ? '注册中...' : '📝 注册'}
               </Button>
             </Form.Item>
           </Form>
-          <Flex justify="center" gap={8}>
-            <Typography.Text type="secondary">已有账号？</Typography.Text>
-            <Link to="/login" className="font-medium text-sky-600">
-              返回登录
-            </Link>
-          </Flex>
-        </Space>
-      </Card>
+        </div>
+      </AuthCard>
+
+      {/* 底部导航 */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 32,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 8,
+        }}
+      >
+        <Typography.Text type="secondary">已有账号？</Typography.Text>
+        <Link to="/login" style={{ color: '#f97316', fontWeight: 600, textDecoration: 'none' }}>
+          🔐 返回登录 →
+        </Link>
+      </div>
     </Flex>
   )
 }

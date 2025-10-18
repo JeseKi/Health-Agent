@@ -1,1 +1,127 @@
 @import "tailwindcss";
+
+/* 🌟 全局样式 - 温暖友好 */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, -apple-system, sans-serif";
+  background-color: #fafaf9;
+  color: #1f2937;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+/* ✨ 按钮交互反馈 */
+button, .ant-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+button:active, .ant-btn:active {
+  transform: scale(0.98);
+}
+
+/* 📝 输入框美化 */
+.ant-input,
+.ant-input-number-input,
+.ant-input-password {
+  transition: all 0.3s ease !important;
+  border-color: #fed7aa !important;
+}
+
+.ant-input:hover,
+.ant-input-number-input:hover,
+.ant-input-password:hover {
+  border-color: #f97316 !important;
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.1) !important;
+}
+
+.ant-input:focus,
+.ant-input-number-input:focus,
+.ant-input-password:focus,
+.ant-input-password-input:focus {
+  border-color: #f97316 !important;
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.2) !important;
+}
+
+/* 🎪 卡片阴影 */
+.ant-card {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease !important;
+}
+
+.ant-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+/* 🎨 主色调链接 */
+a {
+  color: #f97316;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+a:hover {
+  color: #ea580c;
+  text-decoration: underline;
+}
+
+/* ⚠️ 提示框美化 */
+.ant-alert {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.ant-alert-success {
+  background-color: #ecfdf5;
+  color: #065f46;
+}
+
+.ant-alert-error {
+  background-color: #fef2f2;
+  color: #7f1d1d;
+}
+
+.ant-alert-warning {
+  background-color: #fffbeb;
+  color: #92400e;
+}
+
+.ant-alert-info {
+  background-color: #eff6ff;
+  color: #0c2d6b;
+}
+
+/* 🔄 加载动画 */
+.ant-spin-dot-item {
+  background-color: #f97316;
+}
+
+/* 🏷️ 标签美化 */
+.ant-tag {
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.ant-tag:hover {
+  opacity: 0.8;
+  transform: scale(1.02);
+}
+
+/* 📱 响应式微调 */
+@media (max-width: 640px) {
+  .ant-btn {
+    height: 40px;
+    font-size: 14px;
+  }
+}

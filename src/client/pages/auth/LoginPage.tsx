@@ -3,12 +3,9 @@ import {
   Alert,
   App,
   Button,
-  Card,
   Flex,
   Form,
   Input,
-  Space,
-  Spin,
   Typography,
 } from 'antd'
 import {
@@ -19,6 +16,7 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import AuthCard from '../../components/auth/AuthCard'
 
 function resolveErrorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -55,13 +53,13 @@ export default function LoginPage() {
       await login(values)
       const fromState = location.state as { from?: { pathname?: string } } | undefined
       const redirectPath = fromState?.from?.pathname ?? '/'
-      message.success('欢迎回来')
+      message.success('🎉 欢迎回来！')
       navigate(redirectPath, { replace: true })
     } catch (err) {
       console.error('【登录页面】调用登录接口失败', err)
       const text = resolveErrorMessage(err)
       setError(text)
-      message.error(text)
+      message.error(`❌ ${text}`)
     } finally {
       setSubmitting(false)
     }
@@ -74,7 +72,10 @@ export default function LoginPage() {
         justify="center"
         style={{ minHeight: '100vh' }}
       >
-        <Spin tip="正在验证登录状态" size="large" />
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 16, animation: 'pulse 2s infinite' }}>🔐</div>
+          <Typography.Text type="secondary">正在验证登录状态...</Typography.Text>
+        </div>
       </Flex>
     )
   }
@@ -83,22 +84,23 @@ export default function LoginPage() {
     <Flex
       align="center"
       justify="center"
-      style={{ minHeight: '100vh', padding: '48px 16px' }}
+      style={{ minHeight: '100vh', padding: '48px 16px', background: 'linear-gradient(135deg, #fafaf9 0%, #fff7ed 100%)' }}
     >
-      <Card
-        bordered={false}
-        style={{ width: '100%', maxWidth: 420, boxShadow: '0 16px 40px rgba(15, 23, 42, 0.12)' }}
+      <AuthCard
+        title="欢迎回来"
+        description="🚀 输入账号信息以开启你的健康之旅"
       >
-        <Space direction="vertical" size={24} style={{ width: '100%' }}>
-          <div>
-            <Typography.Title level={3} style={{ marginBottom: 8 }}>
-              欢迎回来
-            </Typography.Title>
-            <Typography.Text type="secondary">
-              输入账号信息以访问现代化的前端模板。
-            </Typography.Text>
-          </div>
-          {error && <Alert type="error" showIcon message={error} />}
+        <div style={{ width: '100%' }}>
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message="登录失败"
+              description={error}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           <Form
             form={form}
             layout="vertical"
@@ -107,33 +109,35 @@ export default function LoginPage() {
             autoComplete="on"
           >
             <Form.Item
-              label="用户名"
+              label="👤 用户名"
               name="username"
               rules={[
-                { required: true, message: '请输入用户名' },
-                { min: 3, message: '用户名至少 3 个字符' },
+                { required: true, message: '请输入用户名 📝' },
+                { min: 3, message: '用户名至少 3 个字符 ⚠️' },
               ]}
             >
               <Input
                 size="large"
                 prefix={<UserOutlined />}
-                placeholder="请输入用户名"
+                placeholder="输入你的用户名"
                 autoComplete="username"
                 allowClear
               />
             </Form.Item>
+
             <Form.Item
-              label="密码"
+              label="🔑 密码"
               name="password"
-              rules={[{ required: true, message: '请输入密码' }]}
+              rules={[{ required: true, message: '请输入密码 🔐' }]}
             >
               <Input.Password
                 size="large"
                 prefix={<LockOutlined />}
-                placeholder="请输入密码"
+                placeholder="输入你的密码"
                 autoComplete="current-password"
               />
             </Form.Item>
+
             <Form.Item>
               <Button
                 type="primary"
@@ -142,19 +146,32 @@ export default function LoginPage() {
                 icon={<LoginOutlined />}
                 loading={submitting}
                 block
+                style={{ fontWeight: 600, letterSpacing: '0.5px' }}
               >
-                登录
+                {submitting ? '登录中...' : '🚀 登录'}
               </Button>
             </Form.Item>
           </Form>
-          <Flex justify="center" gap={8}>
-            <Typography.Text type="secondary">还没有账号？</Typography.Text>
-            <Link to="/register" className="font-medium text-sky-600">
-              立即注册
-            </Link>
-          </Flex>
-        </Space>
-      </Card>
+        </div>
+      </AuthCard>
+
+      {/* 底部导航 */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 32,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 8,
+        }}
+      >
+        <Typography.Text type="secondary">还没有账号？</Typography.Text>
+        <Link to="/register" style={{ color: '#f97316', fontWeight: 600, textDecoration: 'none' }}>
+          📝 立即注册 →
+        </Link>
+      </div>
     </Flex>
   )
 }
