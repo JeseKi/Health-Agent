@@ -20,8 +20,6 @@ from __future__ import annotations
 
 from typing import Iterable, List
 
-from loguru import logger
-
 from baml_client.async_client import BamlAsyncClient
 from baml_client.runtime import DoNotUseDirectlyCallManager
 from baml_client import types
@@ -54,8 +52,6 @@ class AgentClient:
             AgentClientError: 当 LLM 调用失败时抛出
         """
         try:
-            logger.info(f"请求 LLM 建议，上下文: {context}")
-
             # 转换 Python 对象为 BAML 类型
             baml_metric = self._convert_to_baml_metric(context.metric)
             baml_preference = (
@@ -71,8 +67,6 @@ class AgentClient:
             # 调用 BAML 函数
             result = await self.client.GenerateHealthSuggestion(baml_context)
 
-            logger.info(f"LLM 返回结果: {result}")
-
             # 转换 BAML 结果为 Pydantic 模型
             return AgentSuggestion(
                 summary=result.summary or "暂无摘要",
@@ -83,7 +77,6 @@ class AgentClient:
                 lifestyle=self._normalize_list(result.lifestyle),
             )
         except Exception as exc:
-            logger.error(f"LLM 调用失败: {exc}")
             raise AgentClientError(f"LLM 服务调用失败: {exc}") from exc
 
     def _convert_to_baml_metric(self, metric: HealthMetricOut) -> types.HealthMetric:
