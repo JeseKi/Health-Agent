@@ -171,10 +171,10 @@ export default function HealthAppPage() {
   }, [loadMetrics, loadPreferences])
 
   useEffect(() => {
-    if (activeTab === 'suggestions' && !suggestion && !suggestionLoading) {
+    if (activeTab === 'suggestions' && !suggestion && !suggestionLoading && !suggestionError) {
       void loadSuggestions()
     }
-  }, [activeTab, suggestion, suggestionLoading, loadSuggestions])
+  }, [activeTab, suggestion, suggestionLoading, suggestionError, loadSuggestions])
 
   useEffect(() => {
     if (metricModalOpen) {
@@ -539,16 +539,10 @@ export default function HealthAppPage() {
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
         <div className="mx-auto flex h-14 w-full max-w-xl items-center justify-between px-4">
           <div>
-            <Typography.Text className="text-xs uppercase tracking-wide text-slate-400">
-              Health Agent
-            </Typography.Text>
             <Typography.Title level={4} className="!mb-0 text-slate-900">
               个性化健康助手
             </Typography.Title>
           </div>
-          <Tag color="cyan" className="rounded-full px-3 py-1 text-xs">
-            移动端体验
-          </Tag>
         </div>
       </header>
 

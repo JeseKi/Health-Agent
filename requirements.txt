@@ -8,6 +8,8 @@ anyio==4.10.0
     # via
     #   httpx
     #   starlette
+baml-py==0.211.0
+    # via -r requirements.in
 bcrypt==4.2.0
     # via -r requirements.in
 certifi==2025.8.3

@@ -21,10 +21,42 @@ flowchart TD
     D -->|写入| E[(SQLite: health_metrics)]
     F[前端获取建议] -->|POST /recommendations| G[HealthService.build_agent_context]
     G --> H[HealthDataDAO 查询最新数据与偏好]
-    H -->|上下文| I[HealthService.request_agent_suggestion]
-    I --> J[AgentClient.fetch_suggestion -> OpenAI 兼容接口]
-    J -->|AgentSuggestion| K[前端渲染]
+    H -->|AgentContext| I[HealthService.request_agent_suggestion]
+    I -->|转换数据模型| J[AgentClient.fetch_suggestion]
+    J -->|HealthAgentContext| K[BAML: GenerateHealthSuggestion]
+    K -->|Jinja2 Prompt| L[OpenAI 兼容接口]
+    L -->|JSON 响应| M[BAML 自动解析]
+    M -->|AgentSuggestion| N[前端渲染]
 ```
+
+## 架构说明
+
+### 原实现（已替换）
+- Prompt 构建在 `HealthService._compose_prompt()` 中
+- HTTP 请求和响应解析在 `AgentClient` 中
+- 类型检查依赖 Pydantic
+
+### 新实现（BAML 驱动）
+- **BAML 定义**（`baml_src/health_agent.baml`）：
+  - 数据模型定义：`HealthMetric`、`HealthPreference`、`HealthAgentContext`、`AgentSuggestion`
+  - LLM 函数：`GenerateHealthSuggestion(context) -> AgentSuggestion`
+  - 使用 Jinja2 模板构建 Prompt，自动处理条件字段
+  - 自动 JSON 解析和类型映射
+
+- **Python 数据转换**（`AgentClient`）：
+  - `_convert_to_baml_metric()`：HealthMetricOut → HealthMetric
+  - `_convert_to_baml_preference()`：HealthPreferenceOut → HealthPreference
+  - `_normalize_list()`：处理列表规范化
+
+- **Service 层简化**（`HealthService`）：
+  - 移除了 Prompt 构建逻辑
+  - 直接传递 `AgentContext` 给 `AgentClient`
+
+**优势**：
+- 类型安全：BAML 编译期检查
+- Prompt 管理集中化：所有语言逻辑在 BAML 文件
+- 易于扩展：支持多语言、多模型无需修改 Python 代码
+- 自动文档：BAML 类型即文档
 
 ## 数据模型
 - `health_metrics`：保存体重、体脂率、BMI、肌肉率、水分率等指标，以 recorded_at 记录采样时间。

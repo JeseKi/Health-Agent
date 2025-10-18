@@ -90,10 +90,11 @@ async def test_request_agent_suggestion_success(test_db_session: Session):
     context = service.build_agent_context(user_id=4)
 
     class StubClient:
-        async def fetch_suggestion(self, prompt):
-            assert any(
-                "体重" in item["content"] for item in prompt if item["role"] == "user"
-            )
+        async def fetch_suggestion(self, context):
+            # 验证传入的 context 是 AgentContext 类型
+            assert hasattr(context, "metric")
+            assert hasattr(context, "preference")
+            assert context.metric.weight_kg == pytest.approx(70.0)
             return AgentSuggestion(
                 summary="保持现状即可",
                 meal_plan=["早餐增加蛋白质"],
@@ -117,7 +118,7 @@ async def test_request_agent_suggestion_failure(test_db_session: Session):
     context = service.build_agent_context(user_id=5)
 
     class FailingClient:
-        async def fetch_suggestion(self, prompt):
+        async def fetch_suggestion(self, context):
             raise AgentClientError("LLM 不可用")
 
     with pytest.raises(HTTPException) as exc_info:

@@ -3,14 +3,13 @@
 健康 Agent LLM 客户端
 
 文件功能：
-    封装对 OpenAI 兼容接口的访问，负责向大语言模型请求健康建议并返回结构化结果。
+    通过 BAML 封装对 LLM 的访问，负责向大语言模型请求健康建议并返回结构化结果。
 
 公开接口：
     - `AgentClient`
     - `AgentClientError`
 
 内部方法：
-    - `_extract_content`
     - `_normalize_list`
 
 公开接口的 pydantic 模型：
@@ -19,13 +18,15 @@
 
 from __future__ import annotations
 
-import json
-import os
-from typing import Iterable, List, Sequence
+from typing import Iterable, List
 
-import httpx
+from loguru import logger
 
-from .schemas import AgentSuggestion
+from baml_client.async_client import BamlAsyncClient
+from baml_client.runtime import DoNotUseDirectlyCallManager
+from baml_client import types
+
+from .schemas import AgentSuggestion, HealthMetricOut, HealthPreferenceOut
 
 
 class AgentClientError(RuntimeError):
@@ -33,77 +34,86 @@ class AgentClientError(RuntimeError):
 
 
 class AgentClient:
-    """面向 OpenAI 兼容接口的健康建议客户端"""
+    """通过 BAML 调用 LLM 的健康建议客户端"""
 
-    def __init__(
-        self,
-        base_url: str | None = None,
-        api_key: str | None = None,
-        model: str | None = None,
-        *,
-        timeout: float = 30.0,
-    ):
-        self.base_url = (base_url or os.getenv("OPENAI_BASE_URL") or "").rstrip("/")
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or ""
-        self.model = model or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
-        self.timeout = timeout
+    def __init__(self):
+        # 初始化 BAML 异步客户端（使用默认配置）
+        self.client = BamlAsyncClient(DoNotUseDirectlyCallManager({}))
 
-    async def fetch_suggestion(
-        self, prompt: Sequence[dict[str, str]]
-    ) -> AgentSuggestion:
-        if not self.base_url:
-            raise AgentClientError("未配置 OPENAI_BASE_URL")
-        if not self.api_key:
-            raise AgentClientError("未配置 OPENAI_API_KEY")
+    async def fetch_suggestion(self, context) -> AgentSuggestion:
+        """
+        调用 BAML 定义的 GenerateHealthSuggestion 函数获取建议
 
-        url = f"{self.base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.model,
-            "messages": list(prompt),
-            "temperature": 0.7,
-            "response_format": {"type": "json_object"},
-        }
+        Args:
+            context: 包含健康指标和偏好的上下文对象，需要转换为 BAML 类型
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(url, headers=headers, json=payload)
+        Returns:
+            AgentSuggestion: 结构化的健康建议
 
-        if response.status_code != 200:
-            raise AgentClientError(
-                f"LLM 服务调用失败，状态码 {response.status_code}：{response.text}"
+        Raises:
+            AgentClientError: 当 LLM 调用失败时抛出
+        """
+        try:
+            logger.info(f"请求 LLM 建议，上下文: {context}")
+
+            # 转换 Python 对象为 BAML 类型
+            baml_metric = self._convert_to_baml_metric(context.metric)
+            baml_preference = (
+                self._convert_to_baml_preference(context.preference)
+                if context.preference
+                else None
+            )
+            baml_context = types.HealthAgentContext(
+                metric=baml_metric,
+                preference=baml_preference,
             )
 
-        content = self._extract_content(response.json())
+            # 调用 BAML 函数
+            result = await self.client.GenerateHealthSuggestion(baml_context)
 
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise AgentClientError(f"LLM 返回结果无法解析为 JSON：{exc}") from exc
+            logger.info(f"LLM 返回结果: {result}")
 
-        return AgentSuggestion(
-            summary=str(parsed.get("summary") or "暂无摘要"),
-            meal_plan=self._normalize_list(parsed.get("meal_plan")),
-            calorie_management=self._normalize_list(parsed.get("calorie_management")),
-            weight_management=self._normalize_list(parsed.get("weight_management")),
-            hydration=self._normalize_list(parsed.get("hydration")),
-            lifestyle=self._normalize_list(parsed.get("lifestyle")),
+            # 转换 BAML 结果为 Pydantic 模型
+            return AgentSuggestion(
+                summary=result.summary or "暂无摘要",
+                meal_plan=self._normalize_list(result.meal_plan),
+                calorie_management=self._normalize_list(result.calorie_management),
+                weight_management=self._normalize_list(result.weight_management),
+                hydration=self._normalize_list(result.hydration),
+                lifestyle=self._normalize_list(result.lifestyle),
+            )
+        except Exception as exc:
+            logger.error(f"LLM 调用失败: {exc}")
+            raise AgentClientError(f"LLM 服务调用失败: {exc}") from exc
+
+    def _convert_to_baml_metric(self, metric: HealthMetricOut) -> types.HealthMetric:
+        """将 HealthMetricOut 转换为 BAML 的 HealthMetric"""
+        return types.HealthMetric(
+            weight_kg=metric.weight_kg,
+            body_fat_percent=metric.body_fat_percent,
+            bmi=metric.bmi,
+            muscle_percent=metric.muscle_percent,
+            water_percent=metric.water_percent,
+            recorded_at=metric.recorded_at.isoformat(),
+            note=metric.note,
         )
 
-    def _extract_content(self, payload: dict) -> str:
-        """从 OpenAI 兼容响应中提取消息内容"""
-        choices = payload.get("choices")
-        if not choices:
-            raise AgentClientError("LLM 返回数据缺少 choices 字段")
-        message = choices[0].get("message")
-        if not message:
-            raise AgentClientError("LLM 返回数据缺少 message 字段")
-        content = message.get("content")
-        if not content:
-            raise AgentClientError("LLM 返回数据缺少 content 字段")
-        return content
+    def _convert_to_baml_preference(
+        self,
+        preference: HealthPreferenceOut | None,
+    ) -> types.HealthPreference | None:
+        """将 HealthPreferenceOut 转换为 BAML 的 HealthPreference"""
+        if preference is None:
+            return None
+
+        return types.HealthPreference(
+            target_weight_kg=preference.target_weight_kg,
+            calorie_budget_kcal=preference.calorie_budget_kcal,
+            dietary_preference=preference.dietary_preference,
+            activity_level=preference.activity_level,
+            sleep_goal_hours=preference.sleep_goal_hours,
+            hydration_goal_liters=preference.hydration_goal_liters,
+        )
 
     def _normalize_list(self, value: Iterable[str] | str | None) -> List[str]:
         """将字符串或可迭代对象转换为建议列表"""

@@ -18,3 +18,4 @@ httpx
 httpx[socks]
 types-python-jose
 alembic
+baml-py==0.211.0
