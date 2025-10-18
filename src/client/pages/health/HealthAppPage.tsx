@@ -567,19 +567,6 @@ export default function HealthAppPage() {
           </Form>
         )}
       </Card>
-
-      {/* 提示卡片 */}
-      <Alert
-        type="info"
-        showIcon
-        message="💡 AI 建议需要配置"
-        description={
-          <Typography.Paragraph className="mb-0" style={{ fontSize: 13 }}>
-            💬 AI 健康建议依赖服务端环境变量 <code>OPENAI_BASE_URL</code> 与 <code>OPENAI_API_KEY</code>。若遇到 503 错误，请检查后端配置或稍后重试。
-          </Typography.Paragraph>
-        }
-        style={{ marginTop: 8, border: 'none', backgroundColor: '#eff6ff' }}
-      />
     </Space>
   )
 
