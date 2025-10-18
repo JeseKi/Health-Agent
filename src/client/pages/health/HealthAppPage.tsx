@@ -398,6 +398,23 @@ export default function HealthAppPage() {
       return <LoadingState message="加载健康建议中..." minHeight={300} />
     }
 
+    // 检查用户是否填写了数据
+    if (!latestMetric) {
+      return (
+        <EmptyState
+          emoji="📝"
+          title="请先填写个人数据"
+          description="AI 建议需要您的健康数据作为基础。请先在「我的数据」标签页记录您的体测数据。"
+          action={{
+            text: '📊 前往填写数据',
+            onClick: () => setActiveTab('metrics'),
+            icon: <BarChartOutlined />,
+          }}
+          minHeight={300}
+        />
+      )
+    }
+
     return (
       <Space direction="vertical" size={16} className="w-full">
         {recommendationError && (
@@ -413,10 +430,15 @@ export default function HealthAppPage() {
 
         {!recommendationError && !recommendation && (
           <EmptyState
-            emoji="🔓"
-            title="暂无健康建议"
-            description="请先在「我的数据」标签页录入健康数据，然后点击「重新生成」按钮获取 AI 建议。"
-            minHeight={180}
+            emoji="🎯"
+            title="还没有生成建议"
+            description="现在为您生成个性化的健康建议吧！点击下方按钮，AI 将基于您的数据为您量身定制健康方案。"
+            action={{
+              text: '✨ 生成 AI 建议',
+              onClick: handleRegenerateRecommendation,
+              icon: <BulbOutlined />,
+            }}
+            minHeight={200}
           />
         )}
 
