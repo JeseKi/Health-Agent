@@ -13,9 +13,9 @@ WORKDIR /app
 COPY .env .
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN baml-cli generate --from baml_src
 COPY src/server/ ./src/server/
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 8000
-CMD ["python","-m","src.server.run"]
+CMD ["python","run.py"]
