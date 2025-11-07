@@ -233,12 +233,13 @@ async def stream_assistant_chat(
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     service = HealthService(db)
+    user_id = current_user.id
 
     def _build_context() -> AgentContext:
-        return service.build_agent_context(current_user.id)
+        return service.build_agent_context(user_id)
 
     def _build_history() -> list[AgentChatMessage]:
-        return service.build_chat_history(current_user.id, limit=50)
+        return service.build_chat_history(user_id, limit=50)
 
     context = await run_in_thread(_build_context)
     history = await run_in_thread(_build_history)
@@ -246,7 +247,7 @@ async def stream_assistant_chat(
 
     await run_in_thread(
         lambda: service.save_assistant_message(
-            current_user.id, "user", request.user_input
+            user_id, "user", request.user_input
         )
     )
 
@@ -257,7 +258,7 @@ async def stream_assistant_chat(
                 if chunk.is_final:
                     await run_in_thread(
                         lambda: service.save_assistant_message(
-                            current_user.id,
+                            user_id,
                             "assistant",
                             chunk.content,
                             need_change=chunk.need_change,
@@ -267,7 +268,7 @@ async def stream_assistant_chat(
                     if chunk.need_change and chunk.change_log:
                         await run_in_thread(
                             lambda: service.apply_change_log(
-                                current_user.id, chunk.change_log
+                                user_id, chunk.change_log
                             )
                         )
         except AgentClientError as exc:
