@@ -199,6 +199,9 @@ function StreamAgentChat(request: AgentChatRequest) -> AgentChatResponse {
     - 如无需修改数据，请返回 need_change=false 且 change_log=[]。
     - 如需修改多个字段，逐项列出。
     - 回复语气专业且友好，可引用历史上下文。
+    - change_log 的 field 字段必须严格使用以下枚举之一（不要创造新键或缩写）：
+      ["weight_kg","body_fat_percent","bmi","muscle_percent","water_percent","note","target_weight_kg","calorie_budget_kcal","dietary_preference","activity_level","sleep_goal_hours","hydration_goal_liters"]
+    - value 应与字段类型一致（数字字段仅写数字或数字+单位，字符串字段输出短句）。
 
     {{ ctx.output_format }}
   "#

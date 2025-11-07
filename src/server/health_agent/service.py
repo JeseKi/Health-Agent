@@ -67,6 +67,23 @@ class HealthService:
         "hydration_goal_liters": {"scope": "preference", "type": "float"},
     }
 
+    _FIELD_ALIASES: dict[str, str] = {
+        "weight": "weight_kg",
+        "weight_percent": "weight_kg",
+        "body_fat": "body_fat_percent",
+        "bodyfat": "body_fat_percent",
+        "muscle": "muscle_percent",
+        "water": "water_percent",
+        "water_rate": "water_percent",
+        "water_ratio": "water_percent",
+        "target_weight": "target_weight_kg",
+        "calorie_budget": "calorie_budget_kcal",
+        "diet": "dietary_preference",
+        "activity": "activity_level",
+        "sleep_goal": "sleep_goal_hours",
+        "hydration_goal": "hydration_goal_liters",
+    }
+
     _NUMERIC_PATTERN = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
 
     def __init__(self, db_session: Session):
@@ -231,7 +248,8 @@ class HealthService:
         preference_updates: dict[str, float | int | str | None] = {}
 
         for item in changes:
-            config = self._FIELD_RULES.get(item.field)
+            field_name = self._FIELD_ALIASES.get(item.field, item.field)
+            config = self._FIELD_RULES.get(field_name)
             if config is None:
                 logger.warning("未知字段，忽略 change_log 项: {}", item.field)
                 continue
@@ -241,9 +259,9 @@ class HealthService:
                 continue
 
             if config["scope"] == "metric":
-                metric_updates[item.field] = parsed_value  # type: ignore[assignment]
+                metric_updates[field_name] = parsed_value  # type: ignore[assignment]
             else:
-                preference_updates[item.field] = parsed_value
+                preference_updates[field_name] = parsed_value
 
         if metric_updates:
             try:
