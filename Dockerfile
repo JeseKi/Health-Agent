@@ -13,6 +13,7 @@ WORKDIR /app
 COPY .env .
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+COPY baml_src/ ./baml_src/
 RUN baml-cli generate --from baml_src
 COPY src/server/ ./src/server/
 COPY --from=builder /app/dist ./dist
