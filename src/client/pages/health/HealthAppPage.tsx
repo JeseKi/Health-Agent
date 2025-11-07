@@ -50,6 +50,7 @@ import LoadingState from '../../components/common/LoadingState'
 import EmptyState from '../../components/common/EmptyState'
 import StatsCard from '../../components/common/StatsCard'
 import RecommendationCard from '../../components/common/RecommendationCard'
+import ChangeItemCard from '../../components/common/ChangeItemCard'
 
 type TabKey = 'metrics' | 'assistant' | 'profile'
 
@@ -602,14 +603,15 @@ export default function HealthAppPage() {
                         {item.content || (chatStreaming && item.role === 'assistant' ? '🤖 正在思考...' : '')}
                       </div>
                       {item.role === 'assistant' && item.need_change && item.change_log.length > 0 && (
-                        <div className="mt-3 rounded-lg bg-orange-50 p-2 text-xs text-orange-700">
-                          <div className="mb-1 font-semibold">🛠 数据更新</div>
-                          {item.change_log.map((log, index) => (
-                            <div key={`${log.field}-${index}`}>
-                              • {log.field} → {log.value}
-                              {log.reason ? `（${log.reason}）` : ''}
-                            </div>
-                          ))}
+                        <div className="mt-3">
+                          <Typography.Text strong style={{ fontSize: 12, color: '#f97316', display: 'block', marginBottom: 8 }}>
+                            🛠️ 数据更新
+                          </Typography.Text>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {item.change_log.map((log, index) => (
+                              <ChangeItemCard key={`${log.field}-${index}`} changeItem={log} />
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
