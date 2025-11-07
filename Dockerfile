@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY baml_src/ ./baml_src/
 RUN baml-cli generate --from baml_src
 COPY src/server/ ./src/server/
+COPY run.py .
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 8000
