@@ -208,16 +208,31 @@ class AgentClient:
         self, response: types.AgentChatResponse
     ) -> AgentChatResponse:
         """将 BAML 响应转换成 Pydantic 模型"""
-        change_log = [
-            AgentChangeItem(
-                field=item.field,
-                value=item.value,
-                reason=item.reason,
-            )
-            for item in (response.change_log or [])
-        ]
+        change_log = self._sanitize_change_items(response.change_log)
         return AgentChatResponse(
             content=response.content or "",
             need_change=bool(response.need_change),
             change_log=change_log,
         )
+
+    def _sanitize_change_items(
+        self, items: list[types.AgentChangeItem] | None
+    ) -> List[AgentChangeItem]:
+        """过滤与规范化变更项，避免字段缺失导致校验失败"""
+        sanitized: List[AgentChangeItem] = []
+        if not items:
+            return sanitized
+
+        for item in items:
+            field = (item.field or "").strip()
+            value = (item.value or "").strip()
+            if not field or not value:
+                continue
+            sanitized.append(
+                AgentChangeItem(
+                    field=field,
+                    value=value,
+                    reason=item.reason,
+                )
+            )
+        return sanitized
