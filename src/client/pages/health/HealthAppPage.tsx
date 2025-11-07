@@ -84,6 +84,7 @@ export default function HealthAppPage() {
   const [assistantLoading, setAssistantLoading] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [chatStreaming, setChatStreaming] = useState(false)
+  const [recommendationCollapsed, setRecommendationCollapsed] = useState(true)
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
 
   const { user } = useAuth()
@@ -270,6 +271,18 @@ export default function HealthAppPage() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
   }, [assistantMessages])
+
+  // 当切换到 AI 助手标签页时，自动滚动到对话区域底部
+  useEffect(() => {
+    if (activeTab === 'assistant' && chatContainerRef.current) {
+      // 使用 setTimeout 确保 DOM 已更新
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+        }
+      }, 100)
+    }
+  }, [activeTab])
 
   const handleSubmitMetric = async () => {
     try {
@@ -513,9 +526,19 @@ export default function HealthAppPage() {
             </Space>
           }
           extra={
-            <Button type="text" onClick={handleRegenerateRecommendation} loading={recommendationLoading}>
-              ✨ 重新生成
-            </Button>
+            <Space>
+              {recommendation && (
+                <Button
+                  type="text"
+                  onClick={() => setRecommendationCollapsed(!recommendationCollapsed)}
+                >
+                  {recommendationCollapsed ? '展开' : '折叠'}
+                </Button>
+              )}
+              <Button type="text" onClick={handleRegenerateRecommendation} loading={recommendationLoading}>
+                ✨ 重新生成
+              </Button>
+            </Space>
           }
         >
           {recommendationLoading && !recommendation ? (
@@ -547,11 +570,27 @@ export default function HealthAppPage() {
               )}
 
               {recommendation && (
-                <RecommendationCard
-                  recommendation={recommendation}
-                  onRegenerate={handleRegenerateRecommendation}
-                  isLoading={recommendationLoading}
-                />
+                <div>
+                  {!recommendationCollapsed && (
+                    <div style={{ marginTop: 8 }}>
+                      <RecommendationCard
+                        recommendation={recommendation}
+                        onRegenerate={handleRegenerateRecommendation}
+                        isLoading={recommendationLoading}
+                      />
+                    </div>
+                  )}
+                  {recommendationCollapsed && (
+                    <div style={{ 
+                      padding: '16px 0', 
+                      textAlign: 'center',
+                      color: '#999',
+                      fontSize: 13
+                    }}>
+                      健康日报已折叠，点击上方"展开"按钮查看详情
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -572,7 +611,7 @@ export default function HealthAppPage() {
           ) : (
             <div
               ref={chatContainerRef}
-              className="flex max-h-[360px] flex-col gap-4 overflow-y-auto pr-2"
+              className="flex max-h-[720px] flex-col gap-4 overflow-y-auto pr-2"
               style={{ minHeight: 200 }}
             >
               {sortedAssistantMessages.length === 0 ? (
