@@ -25,7 +25,7 @@ import {
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 import { isAxiosError } from 'axios'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import {
   createMetric,
@@ -266,7 +266,7 @@ export default function HealthAppPage() {
     }
   }, [preferences, preferenceForm])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
     }
@@ -346,8 +346,14 @@ export default function HealthAppPage() {
     setChatInput('')
     setChatStreaming(true)
 
+    let hasDataChange = false
+
     try {
       await streamAssistantChat(text, (chunk) => {
+        // 检查是否有数据修改（检查 change_log 是否有内容）
+        if (chunk.change_log && chunk.change_log.length > 0) {
+          hasDataChange = true
+        }
         setAssistantMessages((prev) =>
           prev.map((item) =>
             item.id === assistantPlaceholder.id
@@ -363,13 +369,18 @@ export default function HealthAppPage() {
         )
       })
       await loadAssistantMessages()
+      
+      // 如果检测到数据修改，自动拉取最新的健康数据
+      if (hasDataChange) {
+        await Promise.all([loadMetrics(), loadPreferences()])
+      }
     } catch (error) {
       message.error(`❌ ${resolveErrorMessage(error)}`)
       await loadAssistantMessages()
     } finally {
       setChatStreaming(false)
     }
-  }, [chatInput, loadAssistantMessages, message, user?.id])
+  }, [chatInput, loadAssistantMessages, loadMetrics, loadPreferences, message, user?.id])
 
   const tabs: { key: TabKey; label: string; icon: ReactNode; emoji: string }[] = useMemo(
     () => [
