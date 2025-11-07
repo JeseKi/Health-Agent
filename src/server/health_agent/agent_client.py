@@ -26,6 +26,7 @@ from baml_client.runtime import DoNotUseDirectlyCallManager
 from baml_client import types
 
 from .schemas import (
+    AgentContext,
     AgentChangeItem,
     AgentChatMessage,
     AgentChatRequest,
@@ -43,16 +44,31 @@ class AgentClientError(RuntimeError):
 class AgentClient:
     """通过 BAML 调用 LLM 的健康建议客户端"""
 
+    CHANGE_FIELD_WHITELIST: tuple[str, ...] = (
+        "weight_kg",
+        "body_fat_percent",
+        "bmi",
+        "muscle_percent",
+        "water_percent",
+        "note",
+        "target_weight_kg",
+        "calorie_budget_kcal",
+        "dietary_preference",
+        "activity_level",
+        "sleep_goal_hours",
+        "hydration_goal_liters",
+    )
+
     def __init__(self):
         # 初始化 BAML 异步客户端（使用默认配置）
         self.client = BamlAsyncClient(DoNotUseDirectlyCallManager({}))
 
-    async def fetch_suggestion(self, context) -> AgentSuggestion:
+    async def fetch_suggestion(self, context: AgentContext) -> AgentSuggestion:
         """
         调用 BAML 定义的 GenerateHealthSuggestion 函数获取建议
 
         Args:
-            context: 包含健康指标和偏好的上下文对象，需要转换为 BAML 类型
+            context: 包含健康指标与偏好的 AgentContext，需要转换为 BAML 类型
 
         Returns:
             AgentSuggestion: 结构化的健康建议
@@ -208,15 +224,16 @@ class AgentClient:
         self, response: types.AgentChatResponse
     ) -> AgentChatResponse:
         """将 BAML 响应转换成 Pydantic 模型"""
-        change_log = self._sanitize_change_items(response.change_log)
+        change_log = self.sanitize_change_items(response.change_log)
         return AgentChatResponse(
             content=response.content or "",
             need_change=bool(response.need_change),
             change_log=change_log,
         )
 
-    def _sanitize_change_items(
-        self, items: list[types.AgentChangeItem] | None
+    @classmethod
+    def sanitize_change_items(
+        cls, items: list[types.AgentChangeItem] | None
     ) -> List[AgentChangeItem]:
         """过滤与规范化变更项，避免字段缺失导致校验失败"""
         sanitized: List[AgentChangeItem] = []
@@ -224,9 +241,9 @@ class AgentClient:
             return sanitized
 
         for item in items:
-            field = (item.field or "").strip()
-            value = (item.value or "").strip()
-            if not field or not value:
+            field = (getattr(item, "field", "") or "").strip()
+            value = (getattr(item, "value", "") or "").strip()
+            if not field or not value or field not in cls.CHANGE_FIELD_WHITELIST:
                 continue
             sanitized.append(
                 AgentChangeItem(
