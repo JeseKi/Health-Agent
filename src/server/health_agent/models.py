@@ -26,6 +26,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
     Integer,
@@ -110,6 +111,27 @@ class HealthRecommendation(Base):
     )
     hydration: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     lifestyle: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class HealthAssistantMessage(Base):
+    """AI 助手对话消息记录"""
+
+    __tablename__ = "health_assistant_messages"
+    __table_args__ = (
+        Index("idx_health_assistant_messages_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)  # user / assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    need_change: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    change_log: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

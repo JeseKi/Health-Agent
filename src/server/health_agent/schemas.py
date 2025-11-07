@@ -13,6 +13,13 @@
      - `HealthRecommendationOut`
      - `AgentContext`
      - `AgentSuggestion`
+     - `AgentChangeItem`
+     - `AgentChatMessage`
+     - `AgentChatRequest`
+     - `AgentChatResponse`
+     - `AssistantMessagePayload`
+     - `AssistantMessageOut`
+     - `AssistantStreamChunk`
 
 内部方法：
     - `_ensure_timezone`
@@ -24,7 +31,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -166,3 +173,76 @@ class HealthRecommendationOut(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AgentChangeItem(BaseModel):
+    """AI 助手返回的字段修改项"""
+
+    field: str = Field(..., description="需要修改的字段名")
+    value: str = Field(..., description="该字段的新值（原始字符串）")
+    reason: Optional[str] = Field(default=None, description="产生修改的原因")
+
+
+class AgentChatMessage(BaseModel):
+    """上下文历史消息"""
+
+    role: Literal["user", "assistant"]
+    content: str
+    need_change: Optional[bool] = None
+    change_log: Optional[List[AgentChangeItem]] = None
+
+
+class AgentChatRequest(BaseModel):
+    """LLM 聊天请求"""
+
+    metric: HealthMetricOut
+    preference: Optional[HealthPreferenceOut] = None
+    history: List[AgentChatMessage] = Field(default_factory=list)
+    user_input: str
+
+
+class AgentChatResponse(BaseModel):
+    """LLM 聊天响应"""
+
+    content: str
+    need_change: bool = False
+    change_log: List[AgentChangeItem] = Field(default_factory=list)
+
+    @field_validator("change_log", mode="before")
+    @classmethod
+    def ensure_change_log(cls, value: Optional[List[AgentChangeItem]]):
+        return value or []
+
+
+class AssistantMessagePayload(BaseModel):
+    """前端发送的用户消息"""
+
+    content: str = Field(..., min_length=1, max_length=2000, description="用户输入内容")
+
+
+class AssistantMessageOut(BaseModel):
+    """历史消息输出"""
+
+    id: int
+    user_id: int
+    role: Literal["user", "assistant"]
+    content: str
+    need_change: bool
+    change_log: List[AgentChangeItem] = Field(default_factory=list)
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("change_log", mode="before")
+    @classmethod
+    def ensure_change_log(cls, value: Optional[List[AgentChangeItem]]):
+        return value or []
+
+
+class AssistantStreamChunk(BaseModel):
+    """SSE 流中的片段"""
+
+    content: str
+    need_change: bool = False
+    change_log: List[AgentChangeItem] = Field(default_factory=list)
+    is_final: bool = False

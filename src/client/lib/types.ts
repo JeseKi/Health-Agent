@@ -109,3 +109,26 @@ export interface HealthRecommendation {
   lifestyle: string[]
   created_at: string
 }
+
+export interface AgentChangeItem {
+  field: string
+  value: string
+  reason?: string | null
+}
+
+export interface AssistantMessage {
+  id: number
+  user_id: number
+  role: 'user' | 'assistant'
+  content: string
+  need_change: boolean
+  change_log: AgentChangeItem[]
+  created_at: string
+}
+
+export interface AssistantStreamChunk {
+  content: string
+  need_change: boolean
+  change_log: AgentChangeItem[]
+  is_final: boolean
+}

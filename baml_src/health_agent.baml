@@ -40,6 +40,36 @@ class AgentSuggestion {
   lifestyle string[]
 }
 
+// 需要修改的字段项
+class AgentChangeItem {
+  field string
+  value string
+  reason string?
+}
+
+// Agent 历史消息
+class AgentChatMessage {
+  role string  // "user" or "assistant"
+  content string
+  need_change bool?
+  change_log AgentChangeItem[]?
+}
+
+// 聊天请求，携带上下文、历史与当前输入
+class AgentChatRequest {
+  metric HealthMetric
+  preference HealthPreference?
+  history AgentChatMessage[]
+  user_input string
+}
+
+// 聊天响应
+class AgentChatResponse {
+  content string
+  need_change bool
+  change_log AgentChangeItem[]
+}
+
 // ===== LLM 函数定义 =====
 
 // 生成健康建议的主函数
@@ -91,6 +121,89 @@ function GenerateHealthSuggestion(context: HealthAgentContext) -> AgentSuggestio
   "#
 }
 
+// AI 助手流式对话
+function StreamAgentChat(request: AgentChatRequest) -> AgentChatResponse {
+  client CustomChat
+  prompt #"
+    你是用户的长期健康教练，需要记住历史对话并根据最新体测/偏好实时交流。
+
+    任务：
+    1. 结合健康指标、偏好、历史对话内容，生成自然语言回复。
+    2. 判断本轮是否需要修改用户数据库中的字段，填写 need_change。
+    3. 当 need_change 为 true 时，在 change_log 中列出要更新的字段，每项包含 field、value、reason。
+    4. change_log 为空数组表示无需修改。
+
+    【健康指标】
+    体重: {{ request.metric.weight_kg }} kg
+    体脂率: {{ request.metric.body_fat_percent }}%
+    BMI: {{ request.metric.bmi }}
+    肌肉率: {{ request.metric.muscle_percent }}%
+    水分率: {{ request.metric.water_percent }}%
+    记录时间: {{ request.metric.recorded_at }}
+    {%- if request.metric.note %}
+    备注: {{ request.metric.note }}
+    {%- endif %}
+
+    {%- if request.preference %}
+    【健康偏好】
+    {%- if request.preference.target_weight_kg %}
+    目标体重: {{ request.preference.target_weight_kg }}kg
+    {%- endif %}
+    {%- if request.preference.calorie_budget_kcal %}
+    热量预算: {{ request.preference.calorie_budget_kcal }} kcal
+    {%- endif %}
+    {%- if request.preference.dietary_preference %}
+    饮食偏好: {{ request.preference.dietary_preference }}
+    {%- endif %}
+    {%- if request.preference.activity_level %}
+    活动水平: {{ request.preference.activity_level }}
+    {%- endif %}
+    {%- if request.preference.sleep_goal_hours %}
+    睡眠目标: {{ request.preference.sleep_goal_hours }} 小时
+    {%- endif %}
+    {%- if request.preference.hydration_goal_liters %}
+    饮水目标: {{ request.preference.hydration_goal_liters }} 升
+    {%- endif %}
+    {%- endif %}
+
+    {%- if request.history and request.history | length > 0 %}
+    【近期对话摘要（最新在后）】
+    {%- for msg in request.history %}
+    - {{ msg.role }}: {{ msg.content }}
+      {%- if msg.need_change is not none %}
+        (need_change={{ msg.need_change }})
+      {%- endif %}
+      {%- if msg.change_log %}
+        (change_log={{ msg.change_log | length }} 项)
+      {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+
+    【用户当前输入】
+    {{ request.user_input }}
+
+    输出要求（严格遵守 JSON 结构，确保可解析）：
+    {
+      "content": "自然语言回复",
+      "need_change": true | false,
+      "change_log": [
+        {
+          "field": "待更新的数据库字段（如 water_percent, hydration_goal_liters 等）",
+          "value": "字段的新值，尽量保持为纯数字或简短文本",
+          "reason": "修改原因"
+        }
+      ]
+    }
+
+    约束：
+    - 如无需修改数据，请返回 need_change=false 且 change_log=[]。
+    - 如需修改多个字段，逐项列出。
+    - 回复语气专业且友好，可引用历史上下文。
+
+    {{ ctx.output_format }}
+  "#
+}
+
 // 测试函数
 test health_suggestion_test {
   functions [GenerateHealthSuggestion]
@@ -117,3 +230,38 @@ test health_suggestion_test {
   }
 }
 
+test health_chat_test {
+  functions [StreamAgentChat]
+  args {
+    request {
+      metric {
+        weight_kg 65.0
+        body_fat_percent 22.5
+        bmi 21.3
+        muscle_percent 38.0
+        water_percent 54.0
+        recorded_at "2025-01-10T08:00:00Z"
+        note "晨练后"
+      }
+      preference {
+        target_weight_kg 60.0
+        dietary_preference "高蛋白"
+        activity_level "moderate"
+        hydration_goal_liters 2.2
+      }
+      history [
+        {
+          role "user"
+          content "请帮我制定今天的训练"
+        },
+        {
+          role "assistant"
+          content "建议安排 30 分钟有氧"
+          need_change false
+          change_log []
+        }
+      ]
+      user_input "请把饮水目标提高到 2.5 升"
+    }
+  }
+}

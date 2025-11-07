@@ -23,8 +23,17 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from src.server.dao.dao_base import BaseDAO
-from .models import HealthMetric, HealthPreference, HealthRecommendation
-from .schemas import HealthMetricPayload, HealthPreferencePayload, AgentSuggestion
+from .models import (
+    HealthAssistantMessage,
+    HealthMetric,
+    HealthPreference,
+    HealthRecommendation,
+)
+from .schemas import (
+    AgentSuggestion,
+    HealthMetricPayload,
+    HealthPreferencePayload,
+)
 
 
 class HealthDataDAO(BaseDAO):
@@ -126,3 +135,75 @@ class HealthDataDAO(BaseDAO):
             )
             .first()
         )
+
+    def list_assistant_messages(
+        self, user_id: int, limit: int = 50
+    ) -> list[HealthAssistantMessage]:
+        """返回按时间排序的助手对话历史（最旧在前）"""
+        query = (
+            self.db_session.query(HealthAssistantMessage)
+            .filter(HealthAssistantMessage.user_id == user_id)
+            .order_by(
+                desc(HealthAssistantMessage.created_at),
+                desc(HealthAssistantMessage.id),
+            )
+        )
+        if limit > 0:
+            query = query.limit(limit)
+        records = list(query.all())
+        records.reverse()
+        return records
+
+    def create_assistant_message(
+        self,
+        user_id: int,
+        role: str,
+        content: str,
+        *,
+        need_change: bool = False,
+        change_log: list[dict] | None = None,
+    ) -> HealthAssistantMessage:
+        """保存一条助手对话消息"""
+        message = HealthAssistantMessage(
+            user_id=user_id,
+            role=role,
+            content=content,
+            need_change=need_change,
+            change_log=change_log or [],
+        )
+        self.db_session.add(message)
+        self.db_session.commit()
+        self.db_session.refresh(message)
+        return message
+
+    def update_latest_metric_fields(
+        self, user_id: int, updates: dict[str, float | str | int]
+    ) -> HealthMetric:
+        """更新最新一条体测记录的部分字段"""
+        metric = self.get_latest_metric(user_id)
+        if metric is None:
+            raise ValueError("用户暂无体测记录")
+
+        for field, value in updates.items():
+            setattr(metric, field, value)
+
+        self.db_session.add(metric)
+        self.db_session.commit()
+        self.db_session.refresh(metric)
+        return metric
+
+    def apply_preference_updates(
+        self, user_id: int, updates: dict[str, float | str | int | None]
+    ) -> HealthPreference:
+        """对健康偏好进行局部更新（若不存在则创建）"""
+        preference = self.get_preferences(user_id)
+        if preference is None:
+            preference = HealthPreference(user_id=user_id)
+            self.db_session.add(preference)
+
+        for field, value in updates.items():
+            setattr(preference, field, value)
+
+        self.db_session.commit()
+        self.db_session.refresh(preference)
+        return preference

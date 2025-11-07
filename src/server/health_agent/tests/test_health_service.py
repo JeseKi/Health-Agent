@@ -8,13 +8,16 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 import src.server.health_agent.models  # noqa: F401
+from src.server.health_agent.agent_client import AgentClient, AgentClientError
 from src.server.health_agent.schemas import (
+    AgentChangeItem,
+    AgentChatResponse,
     AgentSuggestion,
+    AssistantStreamChunk,
     HealthMetricPayload,
     HealthPreferencePayload,
 )
 from src.server.health_agent.service import HealthService
-from src.server.health_agent.agent_client import AgentClientError
 
 
 def _build_payload(**overrides) -> HealthMetricPayload:
@@ -126,3 +129,78 @@ async def test_request_agent_suggestion_failure(test_db_session: Session):
 
     assert exc_info.value.status_code == 503
     assert "LLM 不可用" in exc_info.value.detail
+
+
+def test_apply_change_log_updates_data(test_db_session: Session):
+    """AI change_log 能更新体测与偏好"""
+    service = HealthService(test_db_session)
+    service.record_metric(user_id=6, payload=_build_payload())
+
+    changes = [
+        AgentChangeItem(field="water_percent", value="60%", reason="test"),
+        AgentChangeItem(field="hydration_goal_liters", value="2.8 L", reason=None),
+    ]
+
+    service.apply_change_log(user_id=6, changes=changes)
+
+    metric = service.get_latest_metric(user_id=6)
+    preference = service.get_preferences(user_id=6)
+
+    assert metric is not None
+    assert preference is not None
+    assert metric.water_percent == pytest.approx(60.0)
+    assert preference.hydration_goal_liters == pytest.approx(2.8)
+
+
+def test_save_and_list_assistant_messages(test_db_session: Session):
+    """对话消息可写入并读取"""
+    service = HealthService(test_db_session)
+    service.record_metric(user_id=7, payload=_build_payload())
+
+    service.save_assistant_message(user_id=7, role="user", content="你好")
+    service.save_assistant_message(
+        user_id=7,
+        role="assistant",
+        content="你好，我是 AI",
+        need_change=True,
+        change_log=[AgentChangeItem(field="note", value="加油", reason=None)],
+    )
+
+    history = service.list_assistant_messages(user_id=7)
+    assert len(history) == 2
+    assert history[1].need_change is True
+    assert history[1].change_log[0].field == "note"
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_yields_chunks(test_db_session: Session):
+    """验证 stream_chat 能按顺序返回片段"""
+    service = HealthService(test_db_session)
+    service.record_metric(user_id=8, payload=_build_payload())
+    context = service.build_agent_context(user_id=8)
+    request = service.compose_chat_request(context, history=[], user_input="调整饮水")
+
+    responses = [
+        AgentChatResponse(content="处理中...", need_change=False, change_log=[]),
+        AgentChatResponse(
+            content="已完成，记得多喝水",
+            need_change=True,
+            change_log=[AgentChangeItem(field="water_percent", value="58", reason="新目标")],
+        ),
+    ]
+
+    class StreamStub:
+        async def stream_chat(self, request):
+            for index, resp in enumerate(responses):
+                yield AgentClient.ChatStreamChunk(
+                    response=resp,
+                    is_final=index == len(responses) - 1,
+                )
+
+    chunks: list[AssistantStreamChunk] = []
+    async for chunk in service.stream_chat(request, client=StreamStub()):  # type: ignore[arg-type]
+        chunks.append(chunk)
+
+    assert len(chunks) == 2
+    assert chunks[-1].is_final is True
+    assert chunks[-1].need_change is True

@@ -1,7 +1,9 @@
 import {
   BarChartOutlined,
   BulbOutlined,
+  MessageOutlined,
   PlusCircleOutlined,
+  SendOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import {
@@ -23,18 +25,21 @@ import {
 import dayjs from 'dayjs'
 import clsx from 'clsx'
 import { isAxiosError } from 'axios'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import {
   createMetric,
   fetchLatestMetric,
   fetchMetricHistory,
   fetchPreferences,
+  fetchAssistantMessages,
   generateNewRecommendation,
   getLatestRecommendation,
+  streamAssistantChat,
   updatePreferences,
 } from '../../lib/health'
 import type {
+  AssistantMessage,
   HealthMetric,
   HealthMetricPayload,
   HealthPreference,
@@ -46,7 +51,7 @@ import EmptyState from '../../components/common/EmptyState'
 import StatsCard from '../../components/common/StatsCard'
 import RecommendationCard from '../../components/common/RecommendationCard'
 
-type TabKey = 'metrics' | 'suggestions' | 'profile'
+type TabKey = 'metrics' | 'assistant' | 'profile'
 
 function resolveErrorMessage(error: unknown) {
   if (isAxiosError(error)) {
@@ -74,6 +79,11 @@ export default function HealthAppPage() {
   const [preferences, setPreferences] = useState<HealthPreference | null>(null)
   const [preferencesLoading, setPreferencesLoading] = useState(false)
   const [preferencesSaving, setPreferencesSaving] = useState(false)
+  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([])
+  const [assistantLoading, setAssistantLoading] = useState(false)
+  const [chatInput, setChatInput] = useState('')
+  const [chatStreaming, setChatStreaming] = useState(false)
+  const chatContainerRef = useRef<HTMLDivElement | null>(null)
 
   const { user } = useAuth()
   const { message } = App.useApp()
@@ -128,6 +138,12 @@ export default function HealthAppPage() {
     ]
   }, [latestMetric])
 
+  const sortedAssistantMessages = useMemo(() => {
+    return [...assistantMessages].sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )
+  }, [assistantMessages])
+
   const recordedAtText = useMemo(() => {
     if (!latestMetric) {
       return ''
@@ -179,6 +195,18 @@ export default function HealthAppPage() {
     }
   }, [])
 
+  const loadAssistantMessages = useCallback(async () => {
+    setAssistantLoading(true)
+    try {
+      const data = await fetchAssistantMessages(50)
+      setAssistantMessages(data ?? [])
+    } catch (error) {
+      message.error(`❌ ${resolveErrorMessage(error)}`)
+    } finally {
+      setAssistantLoading(false)
+    }
+  }, [message])
+
   const handleRegenerateRecommendation = useCallback(async () => {
     setRecommendationLoading(true)
     setRecommendationError(null)
@@ -198,7 +226,8 @@ export default function HealthAppPage() {
     void loadMetrics()
     void loadPreferences()
     void loadLatestRecommendation()
-  }, [loadMetrics, loadPreferences, loadLatestRecommendation])
+    void loadAssistantMessages()
+  }, [loadMetrics, loadPreferences, loadLatestRecommendation, loadAssistantMessages])
 
 
   useEffect(() => {
@@ -235,6 +264,12 @@ export default function HealthAppPage() {
     }
   }, [preferences, preferenceForm])
 
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [assistantMessages])
+
   const handleSubmitMetric = async () => {
     try {
       const values = await metricForm.validateFields()
@@ -267,10 +302,65 @@ export default function HealthAppPage() {
     }
   }
 
+  const handleSendChat = useCallback(async () => {
+    const text = chatInput.trim()
+    if (!text) {
+      message.warning('请输入对话内容')
+      return
+    }
+    const now = new Date().toISOString()
+    const userMessage: AssistantMessage = {
+      id: Date.now(),
+      user_id: user?.id ?? 0,
+      role: 'user',
+      content: text,
+      need_change: false,
+      change_log: [],
+      created_at: now,
+    }
+    const assistantPlaceholder: AssistantMessage = {
+      id: userMessage.id + 1,
+      user_id: user?.id ?? 0,
+      role: 'assistant',
+      content: '',
+      need_change: false,
+      change_log: [],
+      created_at: now,
+    }
+
+    setAssistantMessages((prev) => [...prev, userMessage, assistantPlaceholder])
+    setChatInput('')
+    setChatStreaming(true)
+
+    try {
+      await streamAssistantChat(text, (chunk) => {
+        setAssistantMessages((prev) =>
+          prev.map((item) =>
+            item.id === assistantPlaceholder.id
+              ? {
+                  ...item,
+                  content: chunk.content,
+                  need_change: chunk.need_change,
+                  change_log: chunk.change_log ?? [],
+                  created_at: chunk.is_final ? new Date().toISOString() : item.created_at,
+                }
+              : item,
+          ),
+        )
+      })
+      await loadAssistantMessages()
+    } catch (error) {
+      message.error(`❌ ${resolveErrorMessage(error)}`)
+      await loadAssistantMessages()
+    } finally {
+      setChatStreaming(false)
+    }
+  }, [chatInput, loadAssistantMessages, message, user?.id])
+
   const tabs: { key: TabKey; label: string; icon: ReactNode; emoji: string }[] = useMemo(
     () => [
       { key: 'metrics', label: '我的数据', icon: <BarChartOutlined />, emoji: '📊' },
-      { key: 'suggestions', label: 'AI 建议', icon: <BulbOutlined />, emoji: '💡' },
+      { key: 'assistant', label: 'AI 助手', icon: <BulbOutlined />, emoji: '🤖' },
       { key: 'profile', label: '我的', icon: <UserOutlined />, emoji: '👤' },
     ],
     [],
@@ -393,18 +483,13 @@ export default function HealthAppPage() {
   }
 
 
-  const renderSuggestionTab = () => {
-    if (recommendationLoading && !recommendation) {
-      return <LoadingState message="加载健康建议中..." minHeight={300} />
-    }
-
-    // 检查用户是否填写了数据
+  const renderAssistantTab = () => {
     if (!latestMetric) {
       return (
         <EmptyState
           emoji="📝"
           title="请先填写个人数据"
-          description="AI 建议需要您的健康数据作为基础。请先在「我的数据」标签页记录您的体测数据。"
+          description="AI 助手需要您的健康数据作为基础。请先在「我的数据」标签页记录体测信息。"
           action={{
             text: '📊 前往填写数据',
             onClick: () => setActiveTab('metrics'),
@@ -417,38 +502,155 @@ export default function HealthAppPage() {
 
     return (
       <Space direction="vertical" size={16} className="w-full">
-        {recommendationError && (
-          <Alert
-            type="warning"
-            showIcon
-            className="mb-4"
-            message="⚠️ 无法获取健康建议"
-            description={recommendationError}
-            style={{ marginBottom: 16 }}
-          />
-        )}
+        <Card
+          className="border-none bg-white"
+          style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
+          title={
+            <Space>
+              <BulbOutlined style={{ color: '#f97316' }} />
+              <Typography.Text strong>AI 日报</Typography.Text>
+            </Space>
+          }
+          extra={
+            <Button type="text" onClick={handleRegenerateRecommendation} loading={recommendationLoading}>
+              ✨ 重新生成
+            </Button>
+          }
+        >
+          {recommendationLoading && !recommendation ? (
+            <LoadingState message="加载健康建议中..." minHeight={200} />
+          ) : (
+            <>
+              {recommendationError && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="⚠️ 无法获取健康建议"
+                  description={recommendationError}
+                  style={{ marginBottom: 16 }}
+                />
+              )}
 
-        {!recommendationError && !recommendation && (
-          <EmptyState
-            emoji="🎯"
-            title="还没有生成建议"
-            description="现在为您生成个性化的健康建议吧！点击下方按钮，AI 将基于您的数据为您量身定制健康方案。"
-            action={{
-              text: '✨ 生成 AI 建议',
-              onClick: handleRegenerateRecommendation,
-              icon: <BulbOutlined />,
-            }}
-            minHeight={200}
-          />
-        )}
+              {!recommendationError && !recommendation && (
+                <EmptyState
+                  emoji="🎯"
+                  title="还没有生成建议"
+                  description="现在为您生成个性化的健康日报吧！AI 将基于您的数据提供饮食与训练建议。"
+                  action={{
+                    text: '✨ 生成 AI 日报',
+                    onClick: handleRegenerateRecommendation,
+                    icon: <BulbOutlined />,
+                  }}
+                  minHeight={120}
+                />
+              )}
 
-        {recommendation && (
-          <RecommendationCard
-            recommendation={recommendation}
-            onRegenerate={handleRegenerateRecommendation}
-            isLoading={recommendationLoading}
-          />
-        )}
+              {recommendation && (
+                <RecommendationCard
+                  recommendation={recommendation}
+                  onRegenerate={handleRegenerateRecommendation}
+                  isLoading={recommendationLoading}
+                />
+              )}
+            </>
+          )}
+        </Card>
+
+        <Card
+          className="border-none bg-white"
+          style={{ boxShadow: '0 2px 12px rgba(0, 0, 0, 0.05)' }}
+          title={
+            <Space>
+              <MessageOutlined style={{ color: '#f97316' }} />
+              <Typography.Text strong>AI 对话助手</Typography.Text>
+            </Space>
+          }
+        >
+          {assistantLoading && sortedAssistantMessages.length === 0 ? (
+            <LoadingState message="加载历史对话..." minHeight={200} />
+          ) : (
+            <div
+              ref={chatContainerRef}
+              className="flex max-h-[360px] flex-col gap-4 overflow-y-auto pr-2"
+              style={{ minHeight: 200 }}
+            >
+              {sortedAssistantMessages.length === 0 ? (
+                <EmptyState
+                  emoji="🤖"
+                  title="开始新的对话"
+                  description="可以让 AI 帮你调整饮食、训练或直接修改健康目标。"
+                  minHeight={180}
+                />
+              ) : (
+                sortedAssistantMessages.map((item) => (
+                  <div
+                    key={`assistant-message-${item.id}`}
+                    className={clsx(
+                      'flex flex-col gap-1',
+                      item.role === 'user' ? 'items-end' : 'items-start',
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        'max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm',
+                        item.role === 'user'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-white text-slate-700 border border-orange-100',
+                      )}
+                    >
+                      <div style={{ whiteSpace: 'pre-line' }}>
+                        {item.content || (chatStreaming && item.role === 'assistant' ? '🤖 正在思考...' : '')}
+                      </div>
+                      {item.role === 'assistant' && item.need_change && item.change_log.length > 0 && (
+                        <div className="mt-3 rounded-lg bg-orange-50 p-2 text-xs text-orange-700">
+                          <div className="mb-1 font-semibold">🛠 数据更新</div>
+                          {item.change_log.map((log, index) => (
+                            <div key={`${log.field}-${index}`}>
+                              • {log.field} → {log.value}
+                              {log.reason ? `（${log.reason}）` : ''}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                      {dayjs(item.created_at).format('MM-DD HH:mm')}
+                    </Typography.Text>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col gap-3">
+            <Input.TextArea
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              placeholder="向 AI 助手提问，如：请把我的饮水目标调整到 2.5 升"
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              disabled={chatStreaming}
+              onPressEnter={(event) => {
+                if (!event.shiftKey) {
+                  event.preventDefault()
+                  void handleSendChat()
+                }
+              }}
+            />
+            <div className="flex justify-end">
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                loading={chatStreaming}
+                disabled={!chatInput.trim()}
+                onClick={() => {
+                  void handleSendChat()
+                }}
+              >
+                发送
+              </Button>
+            </div>
+          </div>
+        </Card>
       </Space>
     )
   }
@@ -611,7 +813,7 @@ export default function HealthAppPage() {
       {/* 主内容区 */}
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-16 px-4 pb-32 pt-6">
         {activeTab === 'metrics' && renderMetricTab()}
-        {activeTab === 'suggestions' && renderSuggestionTab()}
+        {activeTab === 'assistant' && renderAssistantTab()}
         {activeTab === 'profile' && renderProfileTab()}
       </main>
 
