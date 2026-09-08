@@ -92,7 +92,7 @@ export default function MainLayout() {
       >
         <Flex align="center" gap={16}>
           <Link to="/" className="text-base font-semibold text-slate-900">
-            Fullstack Template
+            Health Agent
           </Link>
           <Menu
             mode="horizontal"

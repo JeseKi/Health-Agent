@@ -1,6 +1,6 @@
-# Fullstack Template (FastAPI + React/Vite)
+# Health Agent — 可执行的个人健康助手
 
-一个极简但开箱即用的全栈模板：后端基于 FastAPI + SQLAlchemy（SQLite），前端基于 React 19 + Vite 7 + Tailwind CSS 4。内置认证模块与示例业务模块，并提供完善的中文注释与测试样例。
+Health Agent 不只生成建议，还能把自然语言中的调整意图解析成受控、可审计的数据变更。它结合体测记录、健康目标和历史趋势生成个性化日报，并通过 BAML 结构化输出、字段白名单与变更日志，让 Agent 的每一次写操作都可验证、可追溯。
 
 ### 技术栈
 - 后端：FastAPI、SQLAlchemy、Pydantic、python-jose[jwt]、bcrypt、pytest、loguru
@@ -55,7 +55,7 @@ cp .env.example .env
 ```bash
 # 任选其一：
 # python -m venv .venv && source .venv/bin/activate
-# 或 conda create -n fullstack-template python=3.11 -y && conda activate fullstack-template
+# 或 conda create -n health-agent python=3.11 -y && conda activate health-agent
 
 pip install -r requirements.txt
 ```
@@ -178,4 +178,4 @@ pytest -q
 
 ---
 
-感谢使用本模板，祝开发顺利！
+欢迎基于自己的体测数据继续扩展 Health Agent。

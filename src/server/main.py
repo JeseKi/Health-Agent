@@ -54,8 +54,8 @@ async def lifespan(_: FastAPI):
 
 # --- 应用实例与中间件 ---
 fastapi_kwargs = {
-    "title": "Fullstack Template Backend",
-    "description": "提供身份验证、数据库交互及示例模块的后端服务。",
+    "title": "Health Agent API",
+    "description": "提供健康数据管理、个性化建议与受控 Agent 数据变更服务。",
     "lifespan": lifespan,
 }
 
